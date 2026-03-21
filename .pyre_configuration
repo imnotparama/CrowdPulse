@@ -1,0 +1,13 @@
+{
+    "site_package_search_strategy": "pep561",
+    "source_directories": ["backend"],
+    "search_path": [
+        "C:\\Users\\hunte\\CrowdPulse\\venv\\Lib\\site-packages"
+    ],
+    "site_roots": [
+        "C:\\Users\\hunte\\CrowdPulse\\venv\\Lib\\site-packages"
+    ],
+    "site_package_path": "C:\\Users\\hunte\\CrowdPulse\\venv\\Lib\\site-packages",
+    "strict": false,
+    "exclude": ["venv", ".venv", "node_modules", "__pycache__", "frontend"]
+}

@@ -27,6 +27,7 @@ function App() {
     image: null as string | null,
     mode: 'OPTICAL',
     recording: false,
+    predicted_density: 0,
     crowd_alert: null as { id: number, type: string, severity: string, message: string } | null,
     pressure_index: 0,
     capacity_pct: 0,
@@ -38,9 +39,23 @@ function App() {
     sectors: [] as { name: string, count: number, status: string }[],
     wifi_probe_count: 0
   })
-  const [history, setHistory] = useState<{time: string, density: number, agitation: number}[]>([])
+  const [history, setHistory] = useState<{time: string, density: number, predicted_density: number, agitation: number}[]>([])
   const [logs, setLogs] = useState<string[]>([])
   const [alertHistory, setAlertHistory] = useState<{id: number, type: string, severity: string, message: string, timestamp: number}[]>([])
+
+  const [isGlitching, setIsGlitching] = useState(false)
+
+  const speakText = (text: string) => {
+      if (!('speechSynthesis' in window)) return;
+      window.speechSynthesis.cancel();
+      const msg = new SpeechSynthesisUtterance(text);
+      msg.rate = 1.05;
+      msg.pitch = 0.8;
+      const voices = window.speechSynthesis.getVoices();
+      const enVoice = voices.find(v => v.lang.startsWith('en-') && (v.name.includes('Google') || v.name.includes('Microsoft')));
+      if (enVoice) msg.voice = enVoice;
+      window.speechSynthesis.speak(msg);
+  };
 
   const [soundEnabled, setSoundEnabled] = useState(true)
   const [chatOpen, setChatOpen] = useState(false)
@@ -124,17 +139,24 @@ function App() {
               response = "Evacuation routes displayed on tactical map. 3 exit routes available. Recommend immediate deployment of crowd control barriers."
           } else if (lower.includes('scan') || lower.includes('search')) {
               response = `Sector scan complete. ${stats.sectors.filter(s => s.status !== 'SAFE').length} zones showing elevated density. Wi-Fi probes detecting ${stats.wifi_probe_count} devices.`
+          } else if (lower.includes('generate report')) {
+              response = `[POST-INCIDENT REPORT]\nPeak Capacity: ${stats.capacity_pct}%\nPeak Density: ${stats.density.toFixed(2)}\nStampede Risk: ${stats.stampede_risk.toFixed(0)}/100\nResponse: Autonomous units ready for dispatch.`
+          } else if (lower.includes('help') || lower.includes('manual')) {
+              response = `[OPERATOR MANUAL]\nCommands: 'status', 'generate report', 'evacuate', 'scan'\nShortcuts:\n- [S] Toggle Emergency SOS\n- [T] Toggle Thermal Mode\n- [R] Toggle Recording\n- Click Map to view routes.`
           } else if (lower.includes('hello') || lower.includes('hi')) {
-              response = "Greetings, Operator. CrowdPulse safety monitoring active. How can I assist?"
+              response = "Greetings, Operator. Team Fantastic Four Crowd Pulse safety monitoring active. How can I assist?"
           } else if (lower.includes('recording') || lower.includes('evidence')) {
               response = "Accessing Evidence Locker... Encrypted files available for review."
               setLockerOpen(true)
               fetchRecordings()
+          } else {
+              response = "Command not recognized. Analyzing query against CrowdPulse security protocols. Request clarification."
           }
-
+          
           setChatMessages(prev => [...prev, { role: 'ai', text: response }])
           playSound('beep')
-      }, 500)
+          speakText(response)
+      }, 600)
   }
 
   const addLog = (msg: string) => {
@@ -188,6 +210,7 @@ function App() {
             image: data.image,
             mode: data.mode || 'OPTICAL',
             recording: isRecording,
+            predicted_density: data.predicted_density || data.density,
             crowd_alert: data.crowd_alert || null,
             pressure_index: data.pressure_index || 0,
             capacity_pct: data.capacity_pct || 0,
@@ -205,6 +228,7 @@ function App() {
         const newHistory = [...prev, {
           time: new Date(data.timestamp * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
           density: data.density,
+          predicted_density: data.predicted_density || data.density,
           agitation: data.agitation || 0
         }]
         return newHistory.slice(-20) 
@@ -214,6 +238,9 @@ function App() {
       if (data.crowd_alert) {
           addLog(`CROWD_ALERT: ${data.crowd_alert.severity} - ${data.crowd_alert.type} in Zone ${data.crowd_alert.id}`)
           playSound('alert')
+          if (data.crowd_alert.severity === 'CRITICAL') {
+              speakText(`Priority Alert: ${data.crowd_alert.message}`)
+          }
           
           setPersistentAlert(data.crowd_alert)
           
@@ -273,17 +300,21 @@ function App() {
             if (!prev) {
               addLog('🚨 EMERGENCY SOS ACTIVATED — ALL UNITS RESPOND')
               playSound('alert')
+              speakText('Emergency SOS activated. All units respond.')
             } else {
               addLog('SOS DEACTIVATED — Returning to normal monitoring')
+              speakText('Emergency SOS deactivated.')
             }
             return !prev
           })
           break;
         case 't':
           sendCommand('set_mode', { mode: stats.mode === 'OPTICAL' ? 'thermal' : 'optical' })
+          speakText(stats.mode === 'OPTICAL' ? 'Engaging thermal vision' : 'Engaging optical vision')
           break;
         case 'r':
           sendCommand(stats.recording ? 'stop_recording' : 'start_recording')
+          speakText(stats.recording ? 'Stopping recording' : 'Starting recording')
           break;
       }
     }
@@ -310,17 +341,30 @@ function App() {
       }
   }
 
+  const handleCameraChange = (cam: string) => {
+    if (cam === activeCamera) return;
+    playSound('click')
+    setIsGlitching(true)
+    setActiveCamera(cam)
+    setTimeout(() => setIsGlitching(false), 500)
+    speakText(`Switching feed to ${cam.replace('_', ' ')}`)
+  }
+
   const handleVoiceCommand = (cmd: string) => {
       addLog(`VOICE_CMD_RECEIVED: "${cmd}"`)
       if (cmd === 'status') {
       } else if (cmd === 'switch_thermal') {
           sendCommand('set_mode', { mode: 'thermal' })
+          speakText('Engaging thermal vision')
       } else if (cmd === 'switch_optical') {
           sendCommand('set_mode', { mode: 'optical' })
+          speakText('Engaging optical vision')
       } else if (cmd === 'start_recording') {
           sendCommand('start_recording')
+          speakText('Starting recording')
       } else if (cmd === 'stop_recording') {
           sendCommand('stop_recording')
+          speakText('Stopping recording')
       }
   }
 
@@ -351,9 +395,10 @@ function App() {
       )}
 
       {/* Decorative Overlay */}
-      <div className="absolute inset-0 pointer-events-none z-50">
-         <div className="absolute top-0 left-0 w-full h-6 bg-gradient-to-b from-black to-transparent"></div>
-         <div className="absolute bottom-0 left-0 w-full h-6 bg-gradient-to-t from-black to-transparent"></div>
+      <div className="absolute inset-0 pointer-events-none z-50 overflow-hidden">
+         <div className="absolute inset-0 scanlines opacity-50 mix-blend-overlay"></div>
+         <div className="absolute top-0 left-0 w-full h-6 bg-gradient-to-b from-black to-transparent z-10"></div>
+         <div className="absolute bottom-0 left-0 w-full h-6 bg-gradient-to-t from-black to-transparent z-10"></div>
       </div>
 
       <Header status={sosMode ? 'EVACUATE' : stats.status} getStatusColor={getStatusColor} wsConnected={wsConnected} />
@@ -454,7 +499,7 @@ function App() {
                {['CAM_01', 'CAM_02', 'CAM_03'].map(cam => (
                    <button
                        key={cam}
-                       onClick={() => { setActiveCamera(cam); playSound('click') }}
+                       onClick={() => handleCameraChange(cam)}
                        className={`flex items-center gap-1.5 px-3 py-1 text-[9px] font-mono tracking-wider border transition-all ${
                            activeCamera === cam
                                ? 'bg-amd-red text-white border-amd-red'
@@ -474,6 +519,7 @@ function App() {
                        playSound('alert')
                        if (!sosMode) {
                            addLog('🚨 EMERGENCY SOS ACTIVATED — ALL UNITS RESPOND')
+                           speakText('Emergency SOS activated. All units respond.')
                            setAlertHistory(prev => [{
                                id: 0,
                                type: 'EMERGENCY SOS',
@@ -483,6 +529,7 @@ function App() {
                            }, ...prev].slice(0, 20))
                        } else {
                            addLog('SOS DEACTIVATED — Returning to normal monitoring')
+                           speakText('Emergency SOS deactivated.')
                        }
                    }}
                    className={`ml-auto flex items-center gap-1.5 px-3 py-1 text-[9px] font-mono font-bold tracking-wider border transition-all ${
@@ -494,12 +541,13 @@ function App() {
                    <Siren size={12} />
                    {sosMode ? 'CANCEL SOS' : 'EMERGENCY SOS'}
                </button>
-           </div>
+            </div>
 
            <VideoFeed 
                image={stats.image}
                isRecording={stats.recording}
                visionMode={stats.mode}
+               activeCamera={activeCamera}
                soundEnabled={soundEnabled}
                flowDirection={stats.flow_direction}
                sectors={stats.sectors}
@@ -508,6 +556,14 @@ function App() {
                onToggleSound={() => setSoundEnabled(!soundEnabled)}
                onSetGeofence={(points) => sendCommand('set_geofence', { points })}
            />
+           
+           {isGlitching && (
+               <div className="absolute inset-0 bg-black z-50 flex items-center justify-center pointer-events-none">
+                   <div className="text-amd-red font-mono text-xl font-bold animate-pulse tracking-widest glitch-text">
+                       RECALIBRATING SIGNAL...
+                   </div>
+               </div>
+           )}
            
            <VoiceCommand onCommand={handleVoiceCommand} />
         </div>
@@ -537,6 +593,7 @@ function App() {
                       itemStyle={{ color: '#fff', fontSize: '10px' }}
                     />
                     <Area type="monotone" dataKey="agitation" stroke="#EAB308" fill="none" strokeWidth={2} />
+                    <Area type="monotone" dataKey="predicted_density" stroke="#00f3ff" strokeDasharray="4 4" fill="none" strokeWidth={1} />
                     <Area type="monotone" dataKey="density" stroke="#ED1C24" fill="url(#cyberGradient)" strokeWidth={2} />
                  </AreaChart>
                </ResponsiveContainer>

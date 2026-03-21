@@ -13,9 +13,10 @@ const bootMessages = [
     { text: "CALIBRATING DENSITY THRESHOLD MATRIX...", delay: 1400 },
     { text: "ESTABLISHING UPLINK TO COMMAND CENTER...", delay: 1900 },
     { text: "ACTIVATING WI-FI PROBE SENSORS...", delay: 2300 },
-    { text: "MOUNTING EVACUATION ROUTE DATABASE...", delay: 2700 },
-    { text: "RUNNING SYSTEM DIAGNOSTICS... ALL GREEN", delay: 3100 },
-    { text: "CROWD SAFETY AI ENGINE v3.0 — ONLINE", delay: 3600 },
+    { text: "TEAM FANTASTIC FOUR PROTOCOLS INITIATED...", delay: 2700 },
+    { text: "MOUNTING EVACUATION ROUTE DATABASE...", delay: 3200 },
+    { text: "RUNNING SYSTEM DIAGNOSTICS... ALL GREEN", delay: 3700 },
+    { text: "AUTONOMOUS CROWD INTELLIGENCE PLATFORM — ONLINE", delay: 4200 },
 ];
 
 const SplashScreen: React.FC<SplashScreenProps> = ({ onComplete }) => {
@@ -38,8 +39,8 @@ const SplashScreen: React.FC<SplashScreenProps> = ({ onComplete }) => {
             });
         }, 80);
 
-        const fadeTimer = setTimeout(() => setFading(true), 4200);
-        const completeTimer = setTimeout(() => onComplete(), 4800);
+        const fadeTimer = setTimeout(() => setFading(true), 4800);
+        const completeTimer = setTimeout(() => onComplete(), 5400);
 
         return () => {
             clearInterval(progressInterval);
@@ -77,7 +78,7 @@ const SplashScreen: React.FC<SplashScreenProps> = ({ onComplete }) => {
                                 CROWD<span className="text-amd-red">PULSE</span>
                             </h1>
                             <div className="text-[10px] text-amd-silver tracking-[0.5em] uppercase">
-                                Crowd Safety Intelligence Platform
+                                AUTONOMOUS CROWD INTELLIGENCE <br/> CRAFTED BY TEAM FANTASTIC FOUR
                             </div>
                         </div>
                     </motion.div>

@@ -11,6 +11,7 @@ interface VideoFeedProps {
     image: string | null;
     isRecording: boolean;
     visionMode: string;
+    activeCamera: string;
     soundEnabled: boolean;
     flowDirection?: { angle: number, label: string };
     sectors?: SectorData[];
@@ -21,7 +22,7 @@ interface VideoFeedProps {
 }
 
 const VideoFeed: React.FC<VideoFeedProps> = ({ 
-    image, isRecording, visionMode, soundEnabled, flowDirection, sectors,
+    image, isRecording, visionMode, activeCamera, soundEnabled, flowDirection, sectors,
     onToggleRecord, onToggleVision, onToggleSound, onSetGeofence 
 }) => {
     const [drawingMode, setDrawingMode] = useState(false);
@@ -88,6 +89,15 @@ const VideoFeed: React.FC<VideoFeedProps> = ({
         }
     };
 
+    const getCameraFilter = () => {
+        if (visionMode === 'THERMAL') return 'contrast-125 saturate-150';
+        switch(activeCamera) {
+            case 'CAM_02': return 'hue-rotate-15 contrast-110 saturate-50 sepia';
+            case 'CAM_03': return '-hue-rotate-15 saturate-150 contrast-125';
+            default: return '';
+        }
+    };
+
     return (
         <div 
             ref={containerRef}
@@ -101,7 +111,7 @@ const VideoFeed: React.FC<VideoFeedProps> = ({
                     {isRecording ? 'REC' : 'LIVE'}
                  </span>
                  <span className="bg-black/80 border border-white/20 text-white text-[10px] font-mono px-2 py-0.5 rounded-sm flex items-center gap-2">
-                   CAM_01 <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></span>
+                   {activeCamera} <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></span>
                  </span>
               </div>
 
@@ -144,7 +154,7 @@ const VideoFeed: React.FC<VideoFeedProps> = ({
                      <img 
                        ref={imgRef}
                        alt="Live Feed" 
-                       className={`w-full h-full object-contain ${visionMode === 'THERMAL' ? 'contrast-125 saturate-150' : ''}`}
+                       className={`w-full h-full object-contain ${getCameraFilter()}`}
                        style={{ imageRendering: 'auto' }}
                      />
                      <div className="scanline"></div>

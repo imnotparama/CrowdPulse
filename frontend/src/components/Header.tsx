@@ -40,7 +40,7 @@ const Header: React.FC<HeaderProps> = ({ status, getStatusColor, wsConnected = t
                 CROWD<span className="text-amd-red neon-red">PULSE</span>
               </h1>
               <div className="text-[9px] text-amd-silver tracking-[0.3em] uppercase opacity-70">
-                AI Powered Crowd Safety System v4.0
+                AUTONOMOUS CROWD INTELLIGENCE PLATFORM • CRAFTED BY TEAM FANTASTIC FOUR
               </div>
             </div>
           </div>

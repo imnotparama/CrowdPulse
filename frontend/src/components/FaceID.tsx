@@ -46,9 +46,11 @@ const CrowdAlert: React.FC<CrowdAlertProps> = ({ alert }) => {
     const style = getSeverityStyle();
 
     return (
-        <div className={`w-80 ${style.bg} backdrop-blur-md border ${style.border} ${style.glow} rounded-sm overflow-hidden animate-fade-in`}>
+        <div className={`w-80 ${style.bg} backdrop-blur-md border ${style.border} ${style.glow} rounded-sm overflow-hidden animate-fade-in relative`}>
+            <div className="absolute inset-0 pointer-events-none scanlines opacity-50 mix-blend-overlay z-0" />
+            
             {/* Severity Accent Strip */}
-            <div className={`h-1 ${style.accent} w-full`} />
+            <div className={`relative z-10 h-1 ${style.accent} w-full`} />
             
             <div className="p-3">
                 {/* Header */}
