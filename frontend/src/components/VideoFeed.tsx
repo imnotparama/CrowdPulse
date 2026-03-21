@@ -1,5 +1,5 @@
-import React, { useState, useRef } from 'react';
-import { Video, Eye, Volume2, VolumeX, MousePointer2, Compass } from 'lucide-react';
+import React, { useState, useRef, useEffect } from 'react';
+import { Video, Eye, Volume2, VolumeX, MousePointer2, Compass, Maximize2 } from 'lucide-react';
 
 interface SectorData {
     name: string;
@@ -26,7 +26,30 @@ const VideoFeed: React.FC<VideoFeedProps> = ({
 }) => {
     const [drawingMode, setDrawingMode] = useState(false);
     const [points, setPoints] = useState<{x: number, y: number}[]>([]);
+    const [fps, setFps] = useState(0);
+    const [isFullscreen, setIsFullscreen] = useState(false);
     const containerRef = useRef<HTMLDivElement>(null);
+    const imgRef = useRef<HTMLImageElement>(null);
+    const frameTimestamps = useRef<number[]>([]);
+    const prevImageRef = useRef<string | null>(null);
+
+    // Optimized frame rendering — directly update img.src without React re-render
+    useEffect(() => {
+        if (image && image !== prevImageRef.current) {
+            prevImageRef.current = image;
+            if (imgRef.current) {
+                imgRef.current.src = `data:image/jpeg;base64,${image}`;
+            }
+            // FPS counter
+            const now = performance.now();
+            frameTimestamps.current.push(now);
+            frameTimestamps.current = frameTimestamps.current.filter(t => now - t < 2000);
+            const newFps = Math.round(frameTimestamps.current.length / 2);
+            if (Math.abs(newFps - fps) > 1) { // Only re-render if FPS changed by >1
+                setFps(newFps);
+            }
+        }
+    }, [image]);
 
     const handleClick = (e: React.MouseEvent) => {
         if (!drawingMode || !containerRef.current) return;
@@ -45,6 +68,17 @@ const VideoFeed: React.FC<VideoFeedProps> = ({
         }
     };
 
+    const toggleFullscreen = () => {
+        if (!containerRef.current) return;
+        if (!document.fullscreenElement) {
+            containerRef.current.requestFullscreen();
+            setIsFullscreen(true);
+        } else {
+            document.exitFullscreen();
+            setIsFullscreen(false);
+        }
+    };
+
     const getSectorColor = (status: string) => {
         switch(status) {
             case 'CRITICAL': return 'bg-red-500/20 border-red-500/60 text-red-400';
@@ -57,12 +91,12 @@ const VideoFeed: React.FC<VideoFeedProps> = ({
     return (
         <div 
             ref={containerRef}
-            className={`card flex-1 min-h-0 p-0 border-amd-red/30 relative group ${isRecording ? 'border-amd-red shadow-[0_0_20px_#ed1c24]' : ''}`}
+            className={`card flex-1 min-h-0 p-0 border-amd-red/30 relative group ${isRecording ? 'card-danger border-amd-red shadow-[0_0_20px_#ed1c24]' : ''}`}
             onClick={handleClick}
         >
               {/* Feed Header Overlay */}
               <div className="absolute top-3 left-3 z-20 flex gap-2 pointer-events-none">
-                 <span className={`text-[10px] font-bold px-2 py-0.5 rounded-sm flex items-center gap-2 ${isRecording ? 'bg-amd-red text-white animate-pulse' : 'bg-amd-red/80 text-black'}`}>
+                 <span className={`text-[10px] font-bold px-2 py-0.5 rounded-sm flex items-center gap-2 ${isRecording ? 'bg-amd-red text-white animate-pulse-fast' : 'bg-amd-red/80 text-black'}`}>
                     {isRecording ? <div className="w-2 h-2 bg-white rounded-full"></div> : null}
                     {isRecording ? 'REC' : 'LIVE'}
                  </span>
@@ -71,30 +105,47 @@ const VideoFeed: React.FC<VideoFeedProps> = ({
                  </span>
               </div>
 
-              {/* Flow Direction Indicator */}
-              {flowDirection && flowDirection.label !== 'STABLE' && (
-                  <div className="absolute top-3 right-3 z-20 pointer-events-none">
-                      <div className="bg-black/80 border border-neon-blue/40 px-2 py-1 flex items-center gap-2 rounded-sm">
-                          <Compass size={12} className="text-neon-blue" />
-                          <span className="text-[9px] font-mono text-neon-blue">FLOW: {flowDirection.label}</span>
+              {/* Top-right: FPS + Flow + Fullscreen */}
+              <div className="absolute top-3 right-3 z-20 flex gap-2 pointer-events-none">
+                  {/* Real FPS Counter */}
+                  <div className="bg-black/80 border border-white/20 px-2 py-0.5 rounded-sm pointer-events-auto">
+                      <span className={`text-[9px] font-mono font-bold ${fps > 20 ? 'text-neon-green' : fps > 10 ? 'text-neon-amber' : 'text-red-400'}`}>
+                          {fps} FPS
+                      </span>
+                  </div>
+
+                  {/* Flow Direction */}
+                  {flowDirection && flowDirection.label !== 'STABLE' && (
+                      <div className="bg-black/80 border border-neon-blue/40 px-2 py-0.5 flex items-center gap-1.5 rounded-sm">
+                          <Compass size={10} className="text-neon-blue" />
+                          <span className="text-[9px] font-mono text-neon-blue">{flowDirection.label}</span>
                           <div 
-                              className="w-3 h-3 text-neon-blue transition-transform duration-500"
+                              className="text-[9px] text-neon-blue transition-transform duration-500"
                               style={{ transform: `rotate(${flowDirection.angle}deg)` }}
                           >
                               ↑
                           </div>
                       </div>
-                  </div>
-              )}
+                  )}
+
+                  {/* Fullscreen Toggle */}
+                  <button 
+                      onClick={(e) => { e.stopPropagation(); toggleFullscreen(); }} 
+                      className="bg-black/80 border border-white/20 px-1.5 py-0.5 rounded-sm pointer-events-auto hover:bg-white/10 transition-colors"
+                  >
+                      <Maximize2 size={10} className="text-amd-silver" />
+                  </button>
+              </div>
 
                {/* Video Area */}
                <div className="w-full h-full bg-black relative overflow-hidden flex items-center justify-center">
                  {image ? (
                    <>
                      <img 
-                       src={`data:image/jpeg;base64,${image}`} 
+                       ref={imgRef}
                        alt="Live Feed" 
                        className={`w-full h-full object-contain ${visionMode === 'THERMAL' ? 'contrast-125 saturate-150' : ''}`}
+                       style={{ imageRendering: 'auto' }}
                      />
                      <div className="scanline"></div>
                      <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_50%,rgba(0,0,0,0.8)_100%)] pointer-events-none"></div>
@@ -110,8 +161,8 @@ const VideoFeed: React.FC<VideoFeedProps> = ({
                  {sectors && image && (
                      <div className="absolute inset-0 grid grid-cols-2 grid-rows-2 pointer-events-none z-10">
                          {sectors.map((sector, i) => (
-                             <div key={i} className={`border border-white/5 flex items-start justify-start p-1.5 ${sector.status !== 'SAFE' ? getSectorColor(sector.status) : ''}`}>
-                                 <div className={`text-[8px] font-mono px-1 py-0.5 rounded-sm bg-black/60 border ${
+                             <div key={i} className={`border border-white/5 flex items-start justify-start p-1.5 transition-colors duration-500 ${sector.status !== 'SAFE' ? getSectorColor(sector.status) : ''}`}>
+                                 <div className={`text-[8px] font-mono px-1 py-0.5 rounded-sm bg-black/60 border transition-colors duration-500 ${
                                      sector.status === 'CRITICAL' ? 'border-red-500/50 text-red-400' :
                                      sector.status === 'WARNING' ? 'border-orange-500/40 text-orange-400' :
                                      sector.status === 'ELEVATED' ? 'border-yellow-500/30 text-yellow-400' :
@@ -132,20 +183,26 @@ const VideoFeed: React.FC<VideoFeedProps> = ({
                             fill="rgba(237, 28, 36, 0.2)"
                             stroke="#ED1C24"
                             strokeWidth="2"
-                            strokeDasharray="4"
+                            strokeDasharray="8 4"
+                            className="animate-border-sweep"
                          />
+                         {/* Point markers */}
+                         {points.map((p, i) => (
+                             <circle key={i} cx={`${p.x * 100}%`} cy={`${p.y * 100}%`} r="4" fill="#ED1C24" stroke="white" strokeWidth="1" />
+                         ))}
                      </svg>
                  )}
 
-                 {/* HUD Overlays */}
+                 {/* Animated Corner Brackets */}
                  <div className="absolute inset-0 pointer-events-none">
                     <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 border border-white/10"></div>
                     <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-1 h-1 bg-amd-red"></div>
                     
-                    <div className="absolute top-6 left-6 w-12 h-12 border-t-2 border-l-2 border-amd-red/20 rounded-tl-lg"></div>
-                    <div className="absolute top-6 right-6 w-12 h-12 border-t-2 border-r-2 border-amd-red/20 rounded-tr-lg"></div>
-                    <div className="absolute bottom-12 left-6 w-12 h-12 border-b-2 border-l-2 border-amd-red/20 rounded-bl-lg"></div>
-                    <div className="absolute bottom-12 right-6 w-12 h-12 border-b-2 border-r-2 border-amd-red/20 rounded-br-lg"></div>
+                    {/* Animated brackets that pulse on active feed */}
+                    <div className={`absolute top-6 left-6 w-12 h-12 border-t-2 border-l-2 rounded-tl-lg transition-all duration-700 ${image ? 'border-amd-red/40' : 'border-amd-red/20'}`}></div>
+                    <div className={`absolute top-6 right-6 w-12 h-12 border-t-2 border-r-2 rounded-tr-lg transition-all duration-700 ${image ? 'border-amd-red/40' : 'border-amd-red/20'}`}></div>
+                    <div className={`absolute bottom-12 left-6 w-12 h-12 border-b-2 border-l-2 rounded-bl-lg transition-all duration-700 ${image ? 'border-amd-red/40' : 'border-amd-red/20'}`}></div>
+                    <div className={`absolute bottom-12 right-6 w-12 h-12 border-b-2 border-r-2 rounded-br-lg transition-all duration-700 ${image ? 'border-amd-red/40' : 'border-amd-red/20'}`}></div>
                  </div>
                </div>
 
@@ -175,13 +232,15 @@ const VideoFeed: React.FC<VideoFeedProps> = ({
                     </button>
                     <button 
                         onClick={onToggleRecord}
-                        className={`btn-cyber !px-2 !py-1 text-[9px] flex items-center gap-1.5 ${isRecording ? 'bg-amd-red text-white animate-pulse' : ''}`}
+                        className={`btn-cyber !px-2 !py-1 text-[9px] flex items-center gap-1.5 ${isRecording ? 'bg-amd-red text-white animate-pulse-fast' : ''}`}
                     >
                         <Video size={10}/> {isRecording ? 'STOP REC' : 'RECORD'}
                     </button>
                   </div>
-                  <div className="font-mono text-[9px] text-amd-silver/60 hidden md:block">
-                     RES: 1080p | FPS: 30 | LATENCY: 24ms
+                  <div className="font-mono text-[9px] text-amd-silver/60 hidden md:flex items-center gap-3">
+                     <span>RES: 1080p</span>
+                     <span className={fps > 20 ? 'text-neon-green' : fps > 10 ? 'text-neon-amber' : 'text-red-400'}>FPS: {fps}</span>
+                     <span>LATENCY: 24ms</span>
                   </div>
                </div>
         </div>

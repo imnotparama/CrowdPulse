@@ -63,19 +63,19 @@ class DensityAnalyzer:
         wifi_probe_count = int(count * 1.4 + np.random.randint(-2, 5))
 
         return {
-            "count": count,
-            "density": round(density, 2),
-            "status": status,
-            "timestamp": current_time,
-            "pressure_index": round(pressure, 1),
-            "capacity_pct": capacity_pct,
-            "max_capacity": self.max_capacity,
-            "avg_velocity": round(avg_velocity, 1),
-            "time_to_critical": time_to_critical,
-            "stampede_risk": round(stampede_risk, 1),
-            "flow_direction": flow_direction,
+            "count": int(count),
+            "density": float(round(density, 2)),
+            "status": str(status),
+            "timestamp": float(current_time),
+            "pressure_index": float(round(pressure, 1)),
+            "capacity_pct": float(capacity_pct),
+            "max_capacity": int(self.max_capacity),
+            "avg_velocity": float(round(avg_velocity, 1)),
+            "time_to_critical": int(time_to_critical),
+            "stampede_risk": float(round(stampede_risk, 1)),
+            "flow_direction": {"angle": int(flow_direction["angle"]), "label": str(flow_direction["label"])},
             "sectors": sectors,
-            "wifi_probe_count": max(0, wifi_probe_count)
+            "wifi_probe_count": int(max(0, wifi_probe_count))
         }
 
     def _calculate_pressure(self, detections, width, height):

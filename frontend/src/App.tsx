@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { Users, Terminal, MessageSquare, Send, Film, Video, X, Gauge, Wifi, Timer, Navigation, Camera, Siren } from 'lucide-react'
+import { Users, Terminal, MessageSquare, Gauge, Wifi, Timer, Navigation, Camera, Siren } from 'lucide-react'
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { AnimatePresence, motion } from 'framer-motion'
 import Header from './components/Header'
@@ -10,6 +10,8 @@ import VoiceCommand from './components/VoiceCommand'
 import CrowdAlert from './components/FaceID'
 import RiskGauge from './components/RiskGauge'
 import AlertTimeline from './components/AlertTimeline'
+import EvidenceLocker from './components/EvidenceLocker'
+import AIChatSidebar from './components/AIChatSidebar'
 
 import PAAnnouncements from './components/PAAnnouncements'
 
@@ -54,6 +56,9 @@ function App() {
 
   const [persistentAlert, setPersistentAlert] = useState<{ id: number, type: string, severity: string, message: string } | null>(null)
   const alertTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [wsConnected, setWsConnected] = useState(false)
+  const reconnectAttempt = useRef(0)
+  const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const ws = useRef<WebSocket | null>(null)
   const logContainerRef = useRef<HTMLDivElement>(null)
@@ -138,7 +143,7 @@ function App() {
 
   const fetchRecordings = async () => {
       try {
-          const res = await fetch('http://localhost:8000/api/recordings')
+          const res = await fetch('http://127.0.0.1:8000/api/recordings')
           const data = await res.json()
           setRecordings(data)
       } catch (e) {
@@ -146,13 +151,17 @@ function App() {
       }
   }
 
-  useEffect(() => {
+  const connectWebSocket = () => {
+    if (ws.current && ws.current.readyState === WebSocket.OPEN) return;
+
     addLog("SYSTEM_INIT: Initializing CrowdPulse Sequence...")
     addLog("CONNECTED: Attempting handshake with backend node...")
 
-    ws.current = new WebSocket('ws://localhost:8000/ws')
+    ws.current = new WebSocket('ws://127.0.0.1:8000/ws')
 
     ws.current.onopen = () => {
+      setWsConnected(true)
+      reconnectAttempt.current = 0
       addLog("CONNECTION_ESTABLISHED: Uplink secured.")
       addLog("STREAM_START: Live optical feed incoming.")
       playSound('beep')
@@ -208,7 +217,6 @@ function App() {
           
           setPersistentAlert(data.crowd_alert)
           
-          // Add to alert history
           setAlertHistory(prev => [{
               ...data.crowd_alert,
               timestamp: Date.now()
@@ -230,13 +238,58 @@ function App() {
     }
 
     ws.current.onclose = () => {
+      setWsConnected(false)
       addLog("CONNECTION_LOST: Backend uplink severed.")
+      // Auto-reconnect with exponential backoff
+      const delay = Math.min(1000 * Math.pow(2, reconnectAttempt.current), 10000)
+      reconnectAttempt.current += 1
+      addLog(`RECONNECTING: Attempt ${reconnectAttempt.current} in ${delay/1000}s...`)
+      reconnectTimer.current = setTimeout(connectWebSocket, delay)
     }
 
+    ws.current.onerror = () => {
+      ws.current?.close()
+    }
+  }
+
+  useEffect(() => {
+    connectWebSocket()
     return () => {
+      if (reconnectTimer.current) clearTimeout(reconnectTimer.current)
       ws.current?.close()
     }
   }, [])
+
+  // Keyboard shortcuts
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Don't trigger shortcuts when typing in inputs
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
+      
+      switch(e.key.toLowerCase()) {
+        case 's':
+          if (e.ctrlKey || e.metaKey) return; // Don't override Ctrl+S
+          setSosMode(prev => {
+            if (!prev) {
+              addLog('🚨 EMERGENCY SOS ACTIVATED — ALL UNITS RESPOND')
+              playSound('alert')
+            } else {
+              addLog('SOS DEACTIVATED — Returning to normal monitoring')
+            }
+            return !prev
+          })
+          break;
+        case 't':
+          sendCommand('set_mode', { mode: stats.mode === 'OPTICAL' ? 'thermal' : 'optical' })
+          break;
+        case 'r':
+          sendCommand(stats.recording ? 'stop_recording' : 'start_recording')
+          break;
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [stats.mode, stats.recording])
 
   useEffect(() => {
     if (logContainerRef.current) {
@@ -303,7 +356,7 @@ function App() {
          <div className="absolute bottom-0 left-0 w-full h-6 bg-gradient-to-t from-black to-transparent"></div>
       </div>
 
-      <Header status={sosMode ? 'EVACUATE' : stats.status} getStatusColor={getStatusColor} />
+      <Header status={sosMode ? 'EVACUATE' : stats.status} getStatusColor={getStatusColor} wsConnected={wsConnected} />
 
       {/* Main Grid */}
       <main className="max-w-[1920px] mx-auto px-4 py-3 grid grid-cols-12 gap-3 h-[calc(100vh-3.5rem)] overflow-hidden relative">
@@ -549,107 +602,24 @@ function App() {
         </div>
 
         {/* AI Chat Sidebar */}
-        <AnimatePresence>
-        {chatOpen && (
-            <motion.div 
-               initial={{ x: 300, opacity: 0 }}
-               animate={{ x: 0, opacity: 1 }}
-               exit={{ x: 300, opacity: 0 }}
-               className="absolute right-0 top-0 h-full w-80 bg-black/95 backdrop-blur-xl border-l border-amd-red z-50 flex flex-col p-4 shadow-2xl"
-            >
-                <div className="flex justify-between items-center mb-4 border-b border-amd-red/30 pb-2">
-                    <h3 className="text-amd-red font-mono font-bold flex items-center gap-2"><MessageSquare size={16}/> PULSE AI</h3>
-                    <button onClick={() => setChatOpen(false)} className="text-amd-silver hover:text-white"><X size={16}/></button>
-                </div>
-                
-                <div ref={chatContainerRef} className="flex-1 overflow-y-auto space-y-4 mb-4 font-mono text-xs scrollbar-hide">
-                    {chatMessages.map((msg, idx) => (
-                        <div key={idx} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                            <div className={`max-w-[80%] p-2 rounded-sm ${msg.role === 'user' ? 'bg-amd-gray text-white border border-white/10' : 'bg-amd-red/10 text-amd-red border border-amd-red/30'}`}>
-                                {msg.text}
-                            </div>
-                        </div>
-                    ))}
-                </div>
-
-                <form onSubmit={handleChatSubmit} className="relative">
-                    <input 
-                        type="text" 
-                        value={chatInput}
-                        onChange={(e) => setChatInput(e.target.value)}
-                        placeholder="ENTER COMMAND..." 
-                        className="w-full bg-black border border-amd-silver/30 p-2 pr-8 text-xs font-mono text-white focus:border-amd-red focus:outline-none"
-                    />
-                    <button type="submit" className="absolute right-2 top-1/2 -translate-y-1/2 text-amd-red">
-                        <Send size={14}/>
-                    </button>
-                </form>
-            </motion.div>
-        )}
-        </AnimatePresence>
+        <AIChatSidebar 
+            chatOpen={chatOpen}
+            setChatOpen={setChatOpen}
+            chatMessages={chatMessages}
+            chatInput={chatInput}
+            setChatInput={setChatInput}
+            handleChatSubmit={handleChatSubmit}
+            chatContainerRef={chatContainerRef}
+        />
 
         {/* Evidence Locker Modal */}
-        {lockerOpen && (
-            <div className="absolute inset-0 z-50 bg-black/90 backdrop-blur-lg flex items-center justify-center p-12">
-                <div className="w-full h-full border border-amd-red/50 bg-black/50 p-6 flex flex-col relative card shadow-2xl">
-                    <button onClick={() => setLockerOpen(false)} className="absolute top-4 right-4 text-amd-silver hover:text-white">
-                        <X size={24}/>
-                    </button>
-                    
-                    <h2 className="text-2xl font-mono text-white mb-6 flex items-center gap-3">
-                        <Film className="text-amd-red"/> EVIDENCE LOCKER
-                    </h2>
-                    
-                    <div className="flex flex-1 gap-6 min-h-0">
-                         <div className="w-1/3 border-r border-white/10 pr-4 overflow-y-auto">
-                              <h3 className="text-xs font-mono text-amd-silver mb-4 uppercase tracking-widest">Encrypted Files</h3>
-                              {recordings.length === 0 ? (
-                                  <div className="text-amd-silver/50 text-sm font-mono italic">No recordings found.</div>
-                              ) : (
-                                  <div className="space-y-2">
-                                      {recordings.map((rec, i) => (
-                                          <div 
-                                            key={i} 
-                                            onClick={() => setSelectedVideo(rec)}
-                                            className={`p-3 border ${selectedVideo === rec ? 'border-amd-red bg-amd-red/10 text-white' : 'border-white/10 text-amd-silver hover:bg-white/5'} cursor-pointer transition-all font-mono text-xs`}
-                                          >
-                                              <div className="flex items-center gap-2">
-                                                  <Video size={14}/>
-                                                  <span>{rec}</span>
-                                              </div>
-                                          </div>
-                                      ))}
-                                  </div>
-                              )}
-                         </div>
-
-                         <div className="flex-1 flex flex-col items-center justify-center bg-black/50 border border-white/5 p-4 rounded-sm">
-                              {selectedVideo ? (
-                                  <div className="w-full h-full flex flex-col gap-4">
-                                      <div className="flex-1 relative bg-black flex items-center justify-center overflow-hidden border border-amd-red/20 group">
-                                          <video 
-                                              id="evidence-video"
-                                              src={`http://localhost:8000/recordings/${selectedVideo}`} 
-                                              controls
-                                              autoPlay 
-                                              className="max-w-full max-h-full"
-                                          />
-                                      </div>
-                                      <div className="text-center font-mono text-xs text-amd-silver flex flex-col gap-1">
-                                          <div>PLAYING: <span className="text-white">{selectedVideo}</span></div>
-                                      </div>
-                                  </div>
-                              ) : (
-                                  <div className="text-amd-silver/30 font-mono flex flex-col items-center gap-4">
-                                      <Film size={48}/>
-                                      <span>SELECT FOOTAGE TO REVIEW</span>
-                                  </div>
-                              )}
-                         </div>
-                    </div>
-                </div>
-            </div>
-        )}
+        <EvidenceLocker
+            lockerOpen={lockerOpen}
+            setLockerOpen={setLockerOpen}
+            recordings={recordings}
+            selectedVideo={selectedVideo}
+            setSelectedVideo={setSelectedVideo}
+        />
       </main>
 
       {/* GLOBAL OVERLAYS - CROWD ALERT */}

@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 import asyncio
 import json
-import threading
+import time
 import glob
 import os
 from processor import VideoProcessor
@@ -24,10 +24,10 @@ if not os.path.exists("backend/recordings"):
     os.makedirs("backend/recordings")
 
 # Mount recordings directory to serve files
-# Note: In production, Nginx would handle this, but for local hackathon demo, this is great.
 app.mount("/recordings", StaticFiles(directory="backend/recordings"), name="recordings")
 
 processor = VideoProcessor()
+start_time = time.time()
 
 @app.on_event("startup")
 def startup_event():
@@ -41,10 +41,22 @@ async def shutdown_event():
 def read_root():
     return {"status": "CrowdPulse Backend Online"}
 
+@app.get("/api/status")
+async def get_status():
+    """Real system status endpoint for the frontend Header."""
+    uptime = int(time.time() - start_time)
+    data = processor.get_latest_data()
+    return {
+        "uptime_seconds": uptime,
+        "model": "YOLOv8n",
+        "backend_fps": data.get("fps", 0) if data else 0,
+        "ws_clients": 1,  # Could track this properly later
+        "recording": processor.is_recording,
+        "mode": "THERMAL" if processor.heatmap_mode else "OPTICAL"
+    }
+
 @app.get("/api/recordings")
 async def get_recordings():
-    # List all video files in record directory, sorted by newest
-    # Support both mp4 and webm
     files = glob.glob("backend/recordings/*.mp4") + glob.glob("backend/recordings/*.webm")
     files.sort(key=os.path.getmtime, reverse=True)
     return [os.path.basename(f) for f in files]
@@ -56,7 +68,6 @@ async def websocket_endpoint(websocket: WebSocket):
         while True:
             # Check for incoming messages (commands)
             try:
-                # Use a short timeout to check for messages, then send data
                 data_task = asyncio.create_task(websocket.receive_text())
                 done, pending = await asyncio.wait({data_task}, timeout=0.01)
 
@@ -80,20 +91,12 @@ async def websocket_endpoint(websocket: WebSocket):
 
             # Send latest data
             data = processor.get_latest_data()
-            if data:
+            if data and data.get("timestamp") != getattr(websocket, "_last_ts", None):
                 try:
                     await websocket.send_json(data)
+                    websocket._last_ts = data.get("timestamp")
                 except RuntimeError:
-                    break # Connection closed
-            await asyncio.sleep(0.1) # limit update rate
+                    break
+            await asyncio.sleep(0.03)
     except WebSocketDisconnect:
         print("Client disconnected")
-
-@app.on_event("startup")
-async def startup_event():
-    # Start processing thread
-    processor.start()
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    processor.stop()

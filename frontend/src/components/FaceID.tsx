@@ -1,59 +1,81 @@
 import React from 'react';
-import { AlertTriangle, Users } from 'lucide-react';
-
-interface AlertData {
-    id: number;
-    type: string;
-    severity: string;
-    message: string;
-}
+import { AlertTriangle, ShieldAlert, Zap } from 'lucide-react';
 
 interface CrowdAlertProps {
-    alert: AlertData | null;
+    alert: {
+        id: number;
+        type: string;
+        severity: string;
+        message: string;
+    };
 }
 
 const CrowdAlert: React.FC<CrowdAlertProps> = ({ alert }) => {
-    if (!alert) return null;
-
-    const getSeverityColor = () => {
-        switch (alert.severity) {
-            case 'CRITICAL': return 'border-red-500 shadow-[0_0_30px_rgba(239,68,68,0.4)]';
-            case 'HIGH': return 'border-orange-500 shadow-[0_0_20px_rgba(249,115,22,0.3)]';
-            default: return 'border-yellow-500 shadow-[0_0_15px_rgba(234,179,8,0.3)]';
+    const getSeverityStyle = () => {
+        switch(alert.severity) {
+            case 'CRITICAL':
+                return {
+                    border: 'border-red-500',
+                    bg: 'bg-red-950/90',
+                    accent: 'bg-red-500',
+                    text: 'text-red-400',
+                    icon: <ShieldAlert size={18} className="text-red-400" />,
+                    glow: 'shadow-[0_0_30px_rgba(239,68,68,0.3)]'
+                };
+            case 'HIGH':
+                return {
+                    border: 'border-orange-500',
+                    bg: 'bg-orange-950/90',
+                    accent: 'bg-orange-500',
+                    text: 'text-orange-400',
+                    icon: <Zap size={18} className="text-orange-400" />,
+                    glow: 'shadow-[0_0_25px_rgba(249,115,22,0.25)]'
+                };
+            default:
+                return {
+                    border: 'border-yellow-500',
+                    bg: 'bg-yellow-950/90',
+                    accent: 'bg-yellow-500',
+                    text: 'text-yellow-400',
+                    icon: <AlertTriangle size={18} className="text-yellow-400" />,
+                    glow: 'shadow-[0_0_20px_rgba(234,179,8,0.2)]'
+                };
         }
     };
 
-    const getSeverityBg = () => {
-        switch (alert.severity) {
-            case 'CRITICAL': return 'bg-red-500/20 text-red-400';
-            case 'HIGH': return 'bg-orange-500/20 text-orange-400';
-            default: return 'bg-yellow-500/20 text-yellow-400';
-        }
-    };
+    const style = getSeverityStyle();
 
     return (
-        <div className={`w-72 border-l-4 ${getSeverityColor()} bg-black/90 backdrop-blur-md p-4`}>
-            <div className="flex justify-between items-start mb-2">
-                 <h3 className="text-red-400 font-mono font-bold flex items-center gap-2 text-sm">
-                     <AlertTriangle size={16} className="animate-pulse"/> CROWD ALERT
-                 </h3>
-                 <span className={`text-[10px] font-bold px-2 py-0.5 rounded-sm ${getSeverityBg()}`}>
-                     {alert.severity}
-                 </span>
-            </div>
+        <div className={`w-80 ${style.bg} backdrop-blur-md border ${style.border} ${style.glow} rounded-sm overflow-hidden animate-fade-in`}>
+            {/* Severity Accent Strip */}
+            <div className={`h-1 ${style.accent} w-full`} />
             
-            <div className="flex gap-3 items-center mb-2">
-                 <div className="w-12 h-12 bg-red-500/10 rounded-sm flex items-center justify-center border border-red-500/30">
-                      <Users size={24} className="text-red-400"/>
-                 </div>
-                 <div>
-                      <div className="text-lg text-white font-mono font-bold tracking-tight uppercase">{alert.type}</div>
-                      <div className="text-[10px] text-amd-silver uppercase mt-0.5">ZONE {alert.id}</div>
-                 </div>
+            <div className="p-3">
+                {/* Header */}
+                <div className="flex items-center gap-2 mb-2">
+                    {style.icon}
+                    <div className="flex-1">
+                        <div className={`text-xs font-mono font-bold ${style.text} tracking-wider`}>
+                            {alert.type}
+                        </div>
+                        <div className="text-[8px] font-mono text-amd-silver/50">
+                            ZONE {alert.id} • {new Date().toLocaleTimeString()}
+                        </div>
+                    </div>
+                    <span className={`text-[8px] font-mono font-bold px-1.5 py-0.5 border rounded-sm ${style.text} border-current animate-pulse-fast`}>
+                        {alert.severity}
+                    </span>
+                </div>
+                
+                {/* Message */}
+                <p className="text-[10px] font-mono text-white/80 leading-relaxed">
+                    {alert.message}
+                </p>
             </div>
 
-            <div className="text-[10px] text-justify text-amd-silver/70 font-mono leading-tight">
-                 {alert.message}
+            {/* Auto-dismiss progress bar */}
+            <div className="h-0.5 bg-black/50">
+                <div className={`h-full ${style.accent} auto-dismiss-bar`} />
             </div>
         </div>
     );
