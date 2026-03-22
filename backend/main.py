@@ -59,7 +59,7 @@ async def get_status() -> dict[str, Any]:
         backend_fps = float(data.get("fps", 0))
     return {
         "uptime_seconds": uptime,
-        "model": "YOLOv8n",
+        "model": "YOLOv26m",
         "backend_fps": backend_fps,
         "ws_clients": 1,
         "recording": processor.is_recording,

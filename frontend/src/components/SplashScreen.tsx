@@ -9,14 +9,15 @@ interface SplashScreenProps {
 const bootMessages = [
     { text: "INITIALIZING SENSOR NETWORK...", delay: 0 },
     { text: "CONNECTING TO ESP32 MESH NODES... OK", delay: 400 },
-    { text: "LOADING YOLOv8 DETECTION MODEL...", delay: 800 },
+    { text: "LOADING YOLOv26m DETECTION MODEL... OK", delay: 800 },
     { text: "CALIBRATING DENSITY THRESHOLD MATRIX...", delay: 1400 },
     { text: "ESTABLISHING UPLINK TO COMMAND CENTER...", delay: 1900 },
-    { text: "ACTIVATING WI-FI PROBE SENSORS...", delay: 2300 },
+    { text: "ACTIVATING WI-FI PROBE SENSORS... 68 DEVICES DETECTED", delay: 2300 },
     { text: "TEAM FANTASTIC FOUR PROTOCOLS INITIATED...", delay: 2700 },
-    { text: "MOUNTING EVACUATION ROUTE DATABASE...", delay: 3200 },
-    { text: "RUNNING SYSTEM DIAGNOSTICS... ALL GREEN", delay: 3700 },
-    { text: "AUTONOMOUS CROWD INTELLIGENCE PLATFORM — ONLINE", delay: 4200 },
+    { text: "MOUNTING EVACUATION ROUTE DATABASE... 3 ROUTES LOADED", delay: 3200 },
+    { text: "BYTETRACK MULTI-OBJECT TRACKER ONLINE", delay: 3600 },
+    { text: "RUNNING SYSTEM DIAGNOSTICS... ALL SYSTEMS GREEN", delay: 4000 },
+    { text: "AUTONOMOUS CROWD INTELLIGENCE PLATFORM — ONLINE", delay: 4400 },
 ];
 
 const SplashScreen: React.FC<SplashScreenProps> = ({ onComplete }) => {

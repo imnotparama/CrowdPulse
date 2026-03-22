@@ -353,16 +353,48 @@ class VideoProcessor:
             
             else:
                 t: float = time.time()
-                sim_count: int = int(20 + 15 * np.sin(t / 5)) + random.randint(-2, 2)
+                sim_count: int = int(50 + 30 * np.sin(t / 5)) + random.randint(-3, 3)
                 analysis_result_sim: dict[str, Any] = self.analyzer.analyze(
                     [(0.0, 0.0, 0.0, 0.0)] * sim_count, (640, 360)
                 )
                 
+                # Rich simulation frame: animated crowd dots on dark background
                 dummy: np.ndarray = np.zeros((360, 640, 3), dtype=np.uint8)
-                cv2.putText(dummy, "CROWDPULSE v4.0", (180, 150), cv2.FONT_HERSHEY_SIMPLEX, 1.2, (237, 28, 36), 2)
-                cv2.putText(dummy, "SIMULATION MODE", (200, 190), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (100, 100, 100), 1)
                 
-                sim_params: list[int] = [int(cv2.IMWRITE_JPEG_QUALITY), 65]
+                # Draw tactical grid
+                for gx in range(0, 640, 64):
+                    cv2.line(dummy, (gx, 0), (gx, 360), (20, 20, 20), 1)
+                for gy in range(0, 360, 36):
+                    cv2.line(dummy, (0, gy), (640, gy), (20, 20, 20), 1)
+                
+                # Draw animated crowd dots
+                rng = np.random.default_rng(int(t * 5) % 9999)
+                for _ in range(sim_count):
+                    px = int(320 + 200 * rng.standard_normal() * 0.5 + 15 * np.sin(t + rng.uniform(0, 6.28)))
+                    py = int(180 + 100 * rng.standard_normal() * 0.5 + 8 * np.cos(t * 1.3 + rng.uniform(0, 6.28)))
+                    px = max(4, min(635, px))
+                    py = max(4, min(355, py))
+                    intensity: int = int(150 + 80 * rng.uniform())
+                    cv2.circle(dummy, (px, py), 3, (0, intensity // 3, intensity), -1)
+                    cv2.circle(dummy, (px, py), 5, (0, intensity // 5, intensity // 2), 1)
+                
+                # Pulsing heat zone in the centre
+                pulse_r: int = int(90 + 15 * np.sin(t * 2))
+                cv2.circle(dummy, (320, 180), pulse_r, (0, 0, 60), -1)
+                cv2.circle(dummy, (320, 180), pulse_r, (0, 50, 150), 2)
+                cv2.circle(dummy, (320, 180), pulse_r - 20, (0, 0, 100), 2)
+                
+                # Crosshair at centre
+                cv2.line(dummy, (315, 180), (325, 180), (0, 100, 255), 1)
+                cv2.line(dummy, (320, 175), (320, 185), (0, 100, 255), 1)
+                
+                # Status overlays
+                cv2.putText(dummy, f"CROWDPULSE v4.0 [SIMULATION]", (12, 22), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (150, 150, 150), 1)
+                cv2.putText(dummy, f"DETECTED: {sim_count} PERSONS", (12, 42), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 180, 255), 1)
+                cv2.putText(dummy, f"MODEL: YOLOv26m | BYTETRACK", (12, 62), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (100, 100, 100), 1)
+                cv2.putText(dummy, f"TEAM FANTASTIC FOUR", (12, 340), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (237, 28, 36), 1)
+                
+                sim_params: list[int] = [int(cv2.IMWRITE_JPEG_QUALITY), 70]
                 _ret: bool
                 sim_buf: np.ndarray
                 _ret, sim_buf = cv2.imencode('.jpg', dummy, sim_params)
