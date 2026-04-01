@@ -28,10 +28,13 @@ class VideoProcessor:
         self.device: str = "cuda" if torch.cuda.is_available() else "cpu"
         print(f"[CrowdPulse] Device: {self.device}")
         
-        # YOLOv26m — superior dense crowd detection (STAL + ProgLoss + NMS-free)
-        model_name: str = "yolo26m.pt"
+        # YOLOv8m — superior dense crowd detection
+        model_name: str = "yolov8m.pt"
         self.model: YOLO = YOLO(model_name)
         self.model.to(self.device)
+        
+        # State for optical flow
+        self.prev_gray: Optional[np.ndarray] = None
         
         # Warmup
         dummy: np.ndarray = np.zeros((360, 640, 3), dtype=np.uint8)
@@ -139,6 +142,15 @@ class VideoProcessor:
         if self.video_writer is not None:
             self.video_writer.release()
             self.video_writer = None
+
+    def _calculate_real_flow(self, prev_frame: np.ndarray, curr_frame: np.ndarray) -> int:
+        if prev_frame is None or curr_frame is None:
+            return 0
+        flow = cv2.calcOpticalFlowFarneback(prev_frame, curr_frame, None, 0.5, 3, 15, 3, 5, 1.2, 0)
+        avg_x = np.mean(flow[..., 0])
+        avg_y = np.mean(flow[..., 1])
+        angle = int(np.degrees(np.arctan2(avg_y, avg_x)) % 360)
+        return angle
 
     def _calculate_agitation(self, detections: list[tuple[float, float, float, float]], width: int, height: int) -> float:
         density_score: float = min(len(detections) * 5.0, 100.0)
@@ -312,8 +324,23 @@ class VideoProcessor:
                     analysis_result['agitation'] = self.agitation_index
                     analysis_result['fps'] = float(int(self.current_fps * 10) / 10)
                     
-                    current_density = float(analysis_result.get('density', 0))
-                    analysis_result['predicted_density'] = current_density * (1.0 + (self.agitation_index / 100.0) * 0.5)
+                    # Compute Real Optical Flow
+                    curr_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+                    if self.prev_gray is not None:
+                        flow_angle = self._calculate_real_flow(self.prev_gray, curr_gray)
+                        label = "EAST"
+                        if 315 <= flow_angle or flow_angle < 45:
+                            label = "EAST"
+                        elif 45 <= flow_angle < 135:
+                            label = "SOUTH"
+                        elif 135 <= flow_angle < 225:
+                            label = "WEST"
+                        else:
+                            label = "NORTH"
+                        analysis_result['flow_direction'] = {"angle": flow_angle, "label": label}
+                    self.prev_gray = curr_gray
+                    
+                    analysis_result['predicted_density'] = self.analyzer.predict_future_density()
                     
                     if frame_count % self.detect_interval == 0:
                         density: float = float(analysis_result.get('density', 0))
@@ -326,12 +353,7 @@ class VideoProcessor:
                                 {"type": "FLOW BLOCKAGE", "severity": "HIGH", "message": "Crowd flow obstruction detected."},
                             ]
                             
-                            if random.random() > 0.985:
-                                analysis_result['crowd_alert'] = {
-                                    "id": random.randint(1, 8), "type": "POI DETECTED",
-                                    "severity": "CRITICAL", "message": "Facial match found: Priority Target (Confidence 98.7%)."
-                                }
-                            elif random.random() > 0.95:
+                            if random.random() > 0.95:
                                 chosen: dict[str, str] = random.choice(alert_types)
                                 analysis_result['crowd_alert'] = {"id": random.randint(1, 8), **chosen}
                         elif density > 0.4 or det_count > 8:

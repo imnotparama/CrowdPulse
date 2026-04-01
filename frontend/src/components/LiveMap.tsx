@@ -29,15 +29,15 @@ interface LiveMapProps {
 // Evacuation routes (pre-defined paths)
 const evacuationRoutes: [number, number][][] = [
     // Route 1: North exit
-    [[40.7128, -74.0060], [40.7138, -74.0060], [40.7148, -74.0055], [40.7158, -74.0050]],
+    [[13.0827, 80.2707], [13.0837, 80.2707], [13.0847, 80.2712], [13.0857, 80.2717]],
     // Route 2: East exit  
-    [[40.7128, -74.0060], [40.7128, -74.0045], [40.7130, -74.0030], [40.7132, -74.0020]],
+    [[13.0827, 80.2707], [13.0827, 80.2722], [13.0825, 80.2737], [13.0823, 80.2747]],
     // Route 3: South exit
-    [[40.7128, -74.0060], [40.7118, -74.0062], [40.7108, -74.0065], [40.7098, -74.0068]],
+    [[13.0827, 80.2707], [13.0817, 80.2705], [13.0807, 80.2702], [13.0797, 80.2699]],
 ];
 
 const LiveMap: React.FC<LiveMapProps> = ({ alerts }) => {
-    const position: [number, number] = [40.7128, -74.0060];
+    const position: [number, number] = [13.0827, 80.2707];
     const [droneActive, setDroneActive] = useState(false);
     const [dronePos, setDronePos] = useState<[number, number]>(position);
 

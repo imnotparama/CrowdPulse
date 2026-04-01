@@ -151,20 +151,8 @@ class DensityAnalyzer:
         if len(detections) < 3:
             return {"angle": 0, "label": "STABLE"}
         
-        t: float = current_time
-        angle: int = int((np.sin(t / 10) * 180) % 360)
-        
-        label: str = "EAST"
-        if 315 <= angle or angle < 45:
-            label = "EAST"
-        elif 45 <= angle < 135:
-            label = "SOUTH"
-        elif 135 <= angle < 225:
-            label = "WEST"
-        else:
-            label = "NORTH"
-        
-        return {"angle": angle, "label": label}
+        # Note: Real optical flow angle is now calculated in processor.py and injected
+        return {"angle": 0, "label": "STABLE"}
 
     def _analyze_sectors(self, detections: list[tuple[float, float, float, float]], width: int, height: int) -> list[dict[str, Any]]:
         sectors: list[dict[str, Any]] = [
@@ -201,3 +189,11 @@ class DensityAnalyzer:
                 s["status"] = "ELEVATED"
         
         return sectors
+
+    def predict_future_density(self, seconds_ahead: int = 30) -> float:
+        if len(self.density_history) < 10:
+            return self.density_history[-1] if self.density_history else 0.0
+        recent = self.density_history[-10:]
+        trend = (recent[-1] - recent[0]) / len(recent)
+        frames_ahead = seconds_ahead * 10
+        return min(recent[-1] + trend * frames_ahead, 2.0)

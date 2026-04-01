@@ -12,10 +12,12 @@ import RiskGauge from './components/RiskGauge'
 import AlertTimeline from './components/AlertTimeline'
 import EvidenceLocker from './components/EvidenceLocker'
 import AIChatSidebar from './components/AIChatSidebar'
+import SplashScreen from './components/SplashScreen'
 
 import PAAnnouncements from './components/PAAnnouncements'
 
 function App() {
+  const [splashDone, setSplashDone] = useState(false)
   const [activeCamera, setActiveCamera] = useState('CAM_01')
   const [sosMode, setSosMode] = useState(false)
   const [stats, setStats] = useState({
@@ -256,7 +258,7 @@ function App() {
               setPersistentAlert(null)
           }, 5000)
 
-          setAlerts(prev => [...prev, { lat: 40.7128 + (Math.random()-0.5)*0.01, lng: -74.0060 + (Math.random()-0.5)*0.01, type: 'density' }])
+          setAlerts(prev => [...prev, { lat: 13.0827 + (Math.random()-0.5)*0.01, lng: 80.2707 + (Math.random()-0.5)*0.01, type: 'density' }])
       }
 
       if (Math.random() > 0.98) {
@@ -386,6 +388,8 @@ function App() {
     return 'bg-emerald-500'
   }
 
+  if (!splashDone) return <SplashScreen onComplete={() => setSplashDone(true)} />
+
   return (
     <div className={`min-h-screen bg-amd-black font-sans selection:bg-amd-red selection:text-white overflow-hidden relative grid-bg ${sosMode ? 'sos-active' : ''}`}>
 
@@ -446,14 +450,14 @@ function App() {
           {/* Wi-Fi Probe Counter */}
           <div className="card bg-black/50">
             <div className="card-header !mb-1">
-                <span className="card-title"><Wifi size={12}/> WI-FI PROBES</span>
+                <span className="card-title"><Wifi size={12}/> ESTIMATED DEVICES (WI-FI)</span>
                 <span className="text-[10px] font-mono text-neon-green animate-pulse">ACTIVE</span>
             </div>
             <div className="flex items-end gap-2">
                 <div className="text-3xl font-mono font-bold tracking-tighter text-neon-blue">
                     {stats.wifi_probe_count}
                 </div>
-                <div className="text-[9px] font-mono text-amd-silver/50 pb-1">MAC ADDRESSES</div>
+                <div className="text-[9px] font-mono text-amd-silver/50 pb-1">DEVICES DETECTED</div>
             </div>
             <div className="text-[9px] font-mono text-amd-silver/40 mt-1">ESP32 sensor network • Privacy: Hashed</div>
           </div>
