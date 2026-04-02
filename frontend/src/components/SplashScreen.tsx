@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Activity } from 'lucide-react';
 
@@ -9,7 +9,7 @@ interface SplashScreenProps {
 const bootMessages = [
     { text: "INITIALIZING SENSOR NETWORK...", delay: 0 },
     { text: "CONNECTING TO ESP32 MESH NODES... OK", delay: 400 },
-    { text: "LOADING YOLOv26m DETECTION MODEL... OK", delay: 800 },
+    { text: "LOADING YOLOv8m DETECTION MODEL... OK", delay: 800 },
     { text: "CALIBRATING DENSITY THRESHOLD MATRIX...", delay: 1400 },
     { text: "ESTABLISHING UPLINK TO COMMAND CENTER...", delay: 1900 },
     { text: "ACTIVATING WI-FI PROBE SENSORS... 68 DEVICES DETECTED", delay: 2300 },
@@ -20,16 +20,29 @@ const bootMessages = [
     { text: "AUTONOMOUS CROWD INTELLIGENCE PLATFORM — ONLINE", delay: 4400 },
 ];
 
+// Total animation finishes at ~4400ms. Fade starts at 4800ms, complete at 5400ms.
+// Hard safety cap: always call onComplete by 5500ms no matter what.
+const SPLASH_COMPLETE_MS = 5400;
+
 const SplashScreen: React.FC<SplashScreenProps> = ({ onComplete }) => {
     const [visibleLines, setVisibleLines] = useState<number>(0);
     const [progress, setProgress] = useState(0);
     const [fading, setFading] = useState(false);
 
-    useEffect(() => {
-        bootMessages.forEach((msg, i) => {
-            setTimeout(() => setVisibleLines(i + 1), msg.delay);
-        });
+    // Store onComplete in a ref so it never causes the useEffect to re-run.
+    // This is the key fix: if onComplete were in the deps array, every render
+    // (triggered by StrictMode or parent re-renders) would cancel and restart
+    // all timers, meaning completeTimer would never actually fire.
+    const onCompleteRef = useRef(onComplete);
+    onCompleteRef.current = onComplete;
 
+    useEffect(() => {
+        // Schedule each boot message line to appear
+        const lineTimers = bootMessages.map((msg, i) =>
+            setTimeout(() => setVisibleLines(i + 1), msg.delay)
+        );
+
+        // Animate progress bar from 0 → 100 over ~4000ms
         const progressInterval = setInterval(() => {
             setProgress(prev => {
                 if (prev >= 100) {
@@ -40,15 +53,25 @@ const SplashScreen: React.FC<SplashScreenProps> = ({ onComplete }) => {
             });
         }, 80);
 
+        // Begin fade-out
         const fadeTimer = setTimeout(() => setFading(true), 4800);
-        const completeTimer = setTimeout(() => onComplete(), 5400);
+
+        // Call onComplete — always fires even if backend is offline
+        const completeTimer = setTimeout(() => onCompleteRef.current(), SPLASH_COMPLETE_MS);
+
+        // Hard safety net: if something above stalls, force completion at 5.5s
+        const safetyTimer = setTimeout(() => onCompleteRef.current(), 5500);
 
         return () => {
+            lineTimers.forEach(t => clearTimeout(t));
             clearInterval(progressInterval);
             clearTimeout(fadeTimer);
             clearTimeout(completeTimer);
+            clearTimeout(safetyTimer);
         };
-    }, [onComplete]);
+        // Empty deps: run once on mount only. onComplete is accessed via ref.
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     return (
         <AnimatePresence>
@@ -70,7 +93,7 @@ const SplashScreen: React.FC<SplashScreenProps> = ({ onComplete }) => {
                         className="flex items-center gap-4 mb-12"
                     >
                         <div className="w-14 h-14 border-2 border-amd-red flex items-center justify-center relative">
-                            <Activity className="h-8 w-8 text-amd-red" style={{ animation: 'pulse 2s ease-in-out infinite', animationName: 'none' }} />
+                            <Activity className="h-8 w-8 text-amd-red" />
                             <div className="absolute -top-1 -right-1 w-2 h-2 bg-amd-red" />
                             <div className="absolute -bottom-1 -left-1 w-2 h-2 bg-amd-red" />
                         </div>

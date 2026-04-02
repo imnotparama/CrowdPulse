@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { Users, Terminal, MessageSquare, Gauge, Wifi, Timer, Navigation, Camera, Siren } from 'lucide-react'
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { AnimatePresence, motion } from 'framer-motion'
@@ -18,6 +18,13 @@ import PAAnnouncements from './components/PAAnnouncements'
 
 function App() {
   const [splashDone, setSplashDone] = useState(false)
+
+  // Hard safety net: regardless of SplashScreen internals or backend status,
+  // always show the dashboard within 5.5 seconds of mounting.
+  useEffect(() => {
+    const safetyTimer = setTimeout(() => setSplashDone(true), 5500)
+    return () => clearTimeout(safetyTimer)
+  }, [])
   const [activeCamera, setActiveCamera] = useState('CAM_01')
   const [sosMode, setSosMode] = useState(false)
   const [stats, setStats] = useState({
@@ -388,7 +395,10 @@ function App() {
     return 'bg-emerald-500'
   }
 
-  if (!splashDone) return <SplashScreen onComplete={() => setSplashDone(true)} />
+  // Stable callback reference — won't cause SplashScreen's useEffect to re-run
+  const handleSplashComplete = useCallback(() => setSplashDone(true), [])
+
+  if (!splashDone) return <SplashScreen onComplete={handleSplashComplete} />
 
   return (
     <div className={`min-h-screen bg-amd-black font-sans selection:bg-amd-red selection:text-white overflow-hidden relative grid-bg ${sosMode ? 'sos-active' : ''}`}>
@@ -406,6 +416,14 @@ function App() {
       </div>
 
       <Header status={sosMode ? 'EVACUATE' : stats.status} getStatusColor={getStatusColor} wsConnected={wsConnected} />
+
+      {/* Backend offline indicator — non-blocking, shown as a slim banner */}
+      {!wsConnected && (
+        <div className="fixed top-[3.5rem] left-0 right-0 z-[9997] flex items-center justify-center gap-2 bg-yellow-900/80 border-b border-yellow-600/40 py-1 px-4 text-[10px] font-mono text-yellow-400 tracking-widest backdrop-blur-sm">
+          <span className="w-1.5 h-1.5 rounded-full bg-yellow-400 animate-pulse" />
+          BACKEND OFFLINE — Dashboard running in display mode. Reconnecting...
+        </div>
+      )}
 
       {/* Main Grid */}
       <main className="max-w-[1920px] mx-auto px-4 py-3 grid grid-cols-12 gap-3 h-[calc(100vh-3.5rem)] overflow-hidden relative">
