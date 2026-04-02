@@ -16,6 +16,28 @@ from ultralytics import YOLO
 
 from analysis import DensityAnalyzer
 
+# ─── Phone Stream ───────────────────────────────────────────────────────────────
+PHONE_STREAM_URL = "http://192.168.1.6:8080/video"
+
+
+def _test_stream(url: str, timeout_sec: float = 4.0) -> bool:
+    """Try to open a VideoCapture and read one frame within timeout_sec.
+    Returns True if successful, False otherwise."""
+    try:
+        cap = cv2.VideoCapture(url)
+        cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+        deadline = time.time() + timeout_sec
+        while time.time() < deadline:
+            ret, frame = cap.read()
+            if ret and frame is not None:
+                cap.release()
+                return True
+            time.sleep(0.1)
+        cap.release()
+    except Exception:
+        pass
+    return False
+
 
 class VideoProcessor:
     def __init__(self, video_source: Optional[str] = None) -> None:
@@ -23,30 +45,33 @@ class VideoProcessor:
         self.cap: Optional[cv2.VideoCapture] = None
         self.running: bool = False
         self.thread: Optional[threading.Thread] = None
-        
+
+        # Track whether the active source is the phone stream (for reconnect logic)
+        self._using_phone_stream: bool = False
+
         # GPU auto-detect
         self.device: str = "cuda" if torch.cuda.is_available() else "cpu"
         print(f"[CrowdPulse] Device: {self.device}")
-        
+
         # YOLOv8m — superior dense crowd detection
         model_name: str = "yolov8m.pt"
         self.model: YOLO = YOLO(model_name)
         self.model.to(self.device)
-        
+
         # State for optical flow
         self.prev_gray: Optional[np.ndarray] = None
-        
+
         # Warmup
         dummy: np.ndarray = np.zeros((360, 640, 3), dtype=np.uint8)
         self.model.predict(dummy, verbose=False)
         print(f"[CrowdPulse] {model_name} warmed up on {self.device}")
-        
+
         self.analyzer: DensityAnalyzer = DensityAnalyzer()
         self.latest_data: Optional[dict[str, Any]] = None
         self.lock: threading.Lock = threading.Lock()
         self.heatmap_mode: bool = False
         self.heatmap_accumulator: Optional[np.ndarray] = None
-        
+
         # Recording
         self.is_recording: bool = False
         self.video_writer: Optional[cv2.VideoWriter] = None
@@ -57,15 +82,15 @@ class VideoProcessor:
         self.agitation_index: float = 0.0
         self.geofences: list[list[float]] = []
         self.alerts: list[dict[str, Any]] = []
-        
+
         # FPS tracking
         self.fps_counter: deque[float] = deque(maxlen=60)
         self.current_fps: float = 0.0
-        
+
         # Frame pacing
         self.source_fps: float = 30.0
         self.frame_interval: float = 1.0 / 30.0
-        
+
         # HYBRID MODE: Detect every N frames, render all frames
         # On CPU: run detection every 4 frames — intermediate frames reuse cached boxes at full speed
         self.detect_interval: int = 4 if self.device == "cpu" else 1
@@ -74,39 +99,72 @@ class VideoProcessor:
         self.last_analysis: Optional[dict[str, Any]] = None
 
         os.makedirs("backend/recordings", exist_ok=True)
-        
-        if not self.video_source:
-            search_patterns: list[str] = [
-                "backend/videos/*.mp4", "backend/videos/*.avi", "backend/videos/*.mov", "backend/videos/*.mkv",
-                "videos/*.mp4", "videos/*.avi", "videos/*.mov", "videos/*.mkv",
-                "./*.mp4"
-            ]
-            found_videos: list[str] = []
-            for pattern in search_patterns:
-                found_videos.extend(glob.glob(pattern))
 
-            if found_videos:
-                self.video_source = os.path.abspath(found_videos[0])
-                print(f"[CrowdPulse] Video: {self.video_source}")
-            else:
-                print("[CrowdPulse] No video files found. Simulation mode.")
-                self.video_source = 0
+        # ── Source priority resolution (only when no explicit source given) ──────
+        if not self.video_source:
+            self._resolve_source()
+
+    # ─────────────────────────────────────────────────────────────────────────────
+    # SOURCE PRIORITY RESOLUTION
+    # Priority 1: Phone stream (MJPEG via IP Webcam)
+    # Priority 2: Local video files in backend/videos/
+    # Priority 3: Simulation mode (source = None → cap stays None)
+    # ─────────────────────────────────────────────────────────────────────────────
+    def _resolve_source(self) -> None:
+        # 1 — Phone stream
+        print(f"[CrowdPulse] Probing phone stream: {PHONE_STREAM_URL}")
+        if _test_stream(PHONE_STREAM_URL):
+            self.video_source = PHONE_STREAM_URL
+            self._using_phone_stream = True
+            print("[CrowdPulse] Phone stream OK — using as primary source.")
+            return
+
+        print("[CrowdPulse] Phone stream unavailable.")
+
+        # 2 — Local video files
+        search_patterns: list[str] = [
+            "backend/videos/*.mp4", "backend/videos/*.avi",
+            "backend/videos/*.mov", "backend/videos/*.mkv",
+            "videos/*.mp4", "videos/*.avi",
+            "videos/*.mov", "videos/*.mkv",
+            "./*.mp4",
+        ]
+        found_videos: list[str] = []
+        for pattern in search_patterns:
+            found_videos.extend(glob.glob(pattern))
+
+        if found_videos:
+            self.video_source = os.path.abspath(found_videos[0])
+            self._using_phone_stream = False
+            print(f"[CrowdPulse] Video: {self.video_source}")
+            return
+
+        # 3 — Simulation mode
+        print("[CrowdPulse] No video files found. Simulation mode.")
+        self.video_source = None          # cap stays None → simulation branch
+
+    # ─────────────────────────────────────────────────────────────────────────────
 
     def start(self) -> None:
         if self.running:
             return
-        
-        self.cap = cv2.VideoCapture(self.video_source)
-        if self.cap is not None and not self.cap.isOpened():
-            print(f"[CrowdPulse] Cannot open {self.video_source}. Simulation mode.")
-            self.cap = None
-        elif self.cap is not None:
-            src_fps: float = self.cap.get(cv2.CAP_PROP_FPS)
-            if src_fps and src_fps > 0:
-                self.source_fps = src_fps
-                self.frame_interval = 1.0 / src_fps
-                print(f"[CrowdPulse] Source FPS: {src_fps:.1f}")
-        
+
+        if self.video_source is not None:
+            self.cap = cv2.VideoCapture(self.video_source)
+            if self._using_phone_stream:
+                self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+
+            if not self.cap.isOpened():
+                print(f"[CrowdPulse] Cannot open {self.video_source}. Simulation mode.")
+                self.cap = None
+                self._using_phone_stream = False
+            else:
+                src_fps: float = self.cap.get(cv2.CAP_PROP_FPS)
+                if src_fps and src_fps > 0:
+                    self.source_fps = src_fps
+                    self.frame_interval = 1.0 / src_fps
+                    print(f"[CrowdPulse] Source FPS: {src_fps:.1f}")
+
         self.running = True
         self.thread = threading.Thread(target=self._process_loop, daemon=True)
         self.thread.start()
@@ -143,15 +201,18 @@ class VideoProcessor:
             self.video_writer.release()
             self.video_writer = None
 
+    # ─── Real Optical Flow ───────────────────────────────────────────────────────
     def _calculate_real_flow(self, prev_frame: np.ndarray, curr_frame: np.ndarray) -> int:
+        """Compute dominant flow angle (degrees 0–359) from Farneback optical flow."""
         if prev_frame is None or curr_frame is None:
             return 0
         flow = cv2.calcOpticalFlowFarneback(prev_frame, curr_frame, None, 0.5, 3, 15, 3, 5, 1.2, 0)
-        avg_x = np.mean(flow[..., 0])
-        avg_y = np.mean(flow[..., 1])
+        avg_x = float(np.mean(flow[..., 0]))
+        avg_y = float(np.mean(flow[..., 1]))
         angle = int(np.degrees(np.arctan2(avg_y, avg_x)) % 360)
         return angle
 
+    # ─── Agitation ───────────────────────────────────────────────────────────────
     def _calculate_agitation(self, detections: list[tuple[float, float, float, float]], width: int, height: int) -> float:
         density_score: float = min(len(detections) * 5.0, 100.0)
         avg_speed: float = 0.0
@@ -173,6 +234,7 @@ class VideoProcessor:
         speed_score: float = min(avg_speed, 200.0) / 2.0
         return (density_score * 0.4) + (speed_score * 0.6)
 
+    # ─── Draw ─────────────────────────────────────────────────────────────────────
     def _draw_detections(self, frame: np.ndarray, boxes_data: list[dict[str, Any]], width: int, height: int) -> np.ndarray:
         for box_info in boxes_data:
             x1, y1, x2, y2 = box_info['coords']
@@ -184,6 +246,7 @@ class VideoProcessor:
                            cv2.FONT_HERSHEY_SIMPLEX, 0.35, color, 1)
         return frame
 
+    # ─── YOLO + ByteTrack ────────────────────────────────────────────────────────
     def _run_detection(self, frame: np.ndarray, width: int, height: int) -> tuple[list[tuple[float, float, float, float]], list[dict[str, Any]]]:
         results = self.model.track(
             frame, verbose=False, persist=True,
@@ -191,23 +254,23 @@ class VideoProcessor:
             tracker="bytetrack.yaml",
             imgsz=480, classes=[0], max_det=100
         )
-        
+
         detections: list[tuple[float, float, float, float]] = []
         current_ids: list[int] = []
         boxes_data: list[dict[str, Any]] = []
-        
+
         if results and len(results) > 0:
             boxes = results[0].boxes
             for box in boxes:
                 if int(box.cls[0]) != 0:
                     continue
-                    
+
                 x1, y1, x2, y2 = box.xyxy[0].tolist()
                 detections.append((x1, y1, x2, y2))
-                
+
                 cx: int = int((x1+x2)/2)
                 cy: int = int((y1+y2)/2)
-                
+
                 if box.id is not None:
                     tid: int = int(box.id.item())
                     current_ids.append(tid)
@@ -236,43 +299,78 @@ class VideoProcessor:
                         color = (0, 0, 255)
                     else:
                         color = (0, 255, 0)
-                
+
                 conf: float = float(box.conf[0])
                 label: str = f"ID:{int(box.id)}" if box.id is not None else f"{conf:.0%}"
-                
+
                 boxes_data.append({
                     'coords': (x1, y1, x2, y2),
                     'color': color,
                     'label': label
                 })
-        
+
         for tid in list(self.track_history.keys()):
             if tid not in current_ids:
                 del self.track_history[tid]
-        
+
         self.agitation_index = self._calculate_agitation(detections, width, height)
         self.last_detections = detections
         self.last_boxes_raw = boxes_data
         self.last_analysis = self.analyzer.analyze(detections, (width, height))
-        
+
         return detections, boxes_data
 
+    # ─── Phone Stream Reconnect ───────────────────────────────────────────────────
+    def _reconnect_phone_stream(self) -> bool:
+        """Release the current cap and attempt to reconnect to the phone stream.
+        Returns True if reconnected successfully."""
+        print("[CrowdPulse] Phone stream dropped. Releasing cap...")
+        if self.cap is not None:
+            self.cap.release()
+            self.cap = None
+        time.sleep(2.0)
+        print(f"[CrowdPulse] Attempting reconnect to {PHONE_STREAM_URL}...")
+        try:
+            new_cap = cv2.VideoCapture(PHONE_STREAM_URL)
+            new_cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+            ret, frame = new_cap.read()
+            if ret and frame is not None:
+                self.cap = new_cap
+                print("[CrowdPulse] Phone stream reconnected.")
+                return True
+            new_cap.release()
+        except Exception:
+            traceback.print_exc()
+        print("[CrowdPulse] Reconnect failed. Will retry next iteration.")
+        return False
+
+    # ─── Main Processing Loop ────────────────────────────────────────────────────
     def _process_loop(self) -> None:
         frame_count: int = 0
-        
+
         while self.running:
             loop_start: float = time.time()
             frame_data: Optional[dict[str, Any]] = None
-            
+
             if self.cap is not None and self.cap.isOpened():
                 ret: bool
                 frame: np.ndarray
                 ret, frame = self.cap.read()
+
                 if not ret:
-                    self.cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
-                    self.track_history.clear()
-                    continue
-                
+                    if self._using_phone_stream:
+                        # Phone stream dropped — try to reconnect, never crash
+                        reconnected = self._reconnect_phone_stream()
+                        if not reconnected:
+                            # Wait a moment before next retry attempt
+                            time.sleep(2.0)
+                        continue
+                    else:
+                        # Local video file — loop back to start
+                        self.cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+                        self.track_history.clear()
+                        continue
+
                 frame = cv2.resize(frame, (640, 360))
                 height: int = 360
                 width: int = 640
@@ -284,19 +382,19 @@ class VideoProcessor:
                 try:
                     if frame_count % self.detect_interval == 0 or self.last_analysis is None:
                         self._run_detection(frame, width, height)
-                    
+
                     if not self.heatmap_mode and self.last_boxes_raw:
                         self._draw_detections(frame, self.last_boxes_raw, width, height)
-                    
+
                     if self.heatmap_accumulator is not None:
                         self.heatmap_accumulator *= 0.95
-                    
+
                     final_frame: np.ndarray = frame
                     if self.heatmap_mode and self.heatmap_accumulator is not None:
                         hm: np.ndarray = cv2.normalize(self.heatmap_accumulator, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
                         hm_color: np.ndarray = cv2.applyColorMap(hm, cv2.COLORMAP_JET)
                         final_frame = cv2.addWeighted(frame, 0.3, hm_color, 0.7, 0)
-                    
+
                     if self.is_recording and self.video_writer is not None:
                         self.video_writer.write(final_frame)
 
@@ -305,14 +403,14 @@ class VideoProcessor:
                     buf: np.ndarray
                     ret_enc, buf = cv2.imencode('.jpg', final_frame, encode_params)
                     b64: str = base64.b64encode(buf).decode('utf-8')
-                    
+
                     now: float = time.time()
                     self.fps_counter.append(now)
                     if len(self.fps_counter) > 1:
                         elapsed: float = self.fps_counter[-1] - self.fps_counter[0]
                         if elapsed > 0:
                             self.current_fps = (len(self.fps_counter) - 1) / elapsed
-                    
+
                     analysis_result: dict[str, Any]
                     if self.last_analysis is not None:
                         analysis_result = dict(self.last_analysis)
@@ -323,8 +421,8 @@ class VideoProcessor:
                     analysis_result['recording'] = self.is_recording
                     analysis_result['agitation'] = self.agitation_index
                     analysis_result['fps'] = float(int(self.current_fps * 10) / 10)
-                    
-                    # Compute Real Optical Flow
+
+                    # ── Real Optical Flow ─────────────────────────────────────────
                     curr_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
                     if self.prev_gray is not None:
                         flow_angle = self._calculate_real_flow(self.prev_gray, curr_gray)
@@ -339,20 +437,21 @@ class VideoProcessor:
                             label = "NORTH"
                         analysis_result['flow_direction'] = {"angle": flow_angle, "label": label}
                     self.prev_gray = curr_gray
-                    
+
                     analysis_result['predicted_density'] = self.analyzer.predict_future_density()
-                    
+
+                    # ── Legitimate Density / Pressure / Flow alerts ───────────────
+                    # NOTE: No fake POI/facial-match alerts — only real density-based triggers.
                     if frame_count % self.detect_interval == 0:
                         density: float = float(analysis_result.get('density', 0))
                         det_count: int = len(self.last_detections)
-                        
+
                         if density > 0.7 or det_count > 15:
                             alert_types: list[dict[str, str]] = [
-                                {"type": "HIGH DENSITY", "severity": "CRITICAL", "message": "Crowd density exceeding safe threshold."},
+                                {"type": "HIGH DENSITY",   "severity": "CRITICAL", "message": "Crowd density exceeding safe threshold."},
                                 {"type": "PRESSURE SURGE", "severity": "CRITICAL", "message": "Physical pressure spike detected."},
-                                {"type": "FLOW BLOCKAGE", "severity": "HIGH", "message": "Crowd flow obstruction detected."},
+                                {"type": "FLOW BLOCKAGE",  "severity": "HIGH",     "message": "Crowd flow obstruction detected."},
                             ]
-                            
                             if random.random() > 0.95:
                                 chosen: dict[str, str] = random.choice(alert_types)
                                 analysis_result['crowd_alert'] = {"id": random.randint(1, 8), **chosen}
@@ -367,28 +466,29 @@ class VideoProcessor:
 
                 except Exception:
                     traceback.print_exc()
-                
+
                 proc_elapsed: float = time.time() - loop_start
                 wait: float = self.frame_interval - proc_elapsed
                 if wait > 0:
                     time.sleep(wait)
-            
+
             else:
+                # ── Simulation mode ───────────────────────────────────────────────
                 t: float = time.time()
                 sim_count: int = int(50 + 30 * np.sin(t / 5)) + random.randint(-3, 3)
                 analysis_result_sim: dict[str, Any] = self.analyzer.analyze(
                     [(0.0, 0.0, 0.0, 0.0)] * sim_count, (640, 360)
                 )
-                
+
                 # Rich simulation frame: animated crowd dots on dark background
                 dummy: np.ndarray = np.zeros((360, 640, 3), dtype=np.uint8)
-                
+
                 # Draw tactical grid
                 for gx in range(0, 640, 64):
                     cv2.line(dummy, (gx, 0), (gx, 360), (20, 20, 20), 1)
                 for gy in range(0, 360, 36):
                     cv2.line(dummy, (0, gy), (640, gy), (20, 20, 20), 1)
-                
+
                 # Draw animated crowd dots
                 rng = np.random.default_rng(int(t * 5) % 9999)
                 for _ in range(sim_count):
@@ -399,23 +499,23 @@ class VideoProcessor:
                     intensity: int = int(150 + 80 * rng.uniform())
                     cv2.circle(dummy, (px, py), 3, (0, intensity // 3, intensity), -1)
                     cv2.circle(dummy, (px, py), 5, (0, intensity // 5, intensity // 2), 1)
-                
+
                 # Pulsing heat zone in the centre
                 pulse_r: int = int(90 + 15 * np.sin(t * 2))
                 cv2.circle(dummy, (320, 180), pulse_r, (0, 0, 60), -1)
                 cv2.circle(dummy, (320, 180), pulse_r, (0, 50, 150), 2)
                 cv2.circle(dummy, (320, 180), pulse_r - 20, (0, 0, 100), 2)
-                
+
                 # Crosshair at centre
                 cv2.line(dummy, (315, 180), (325, 180), (0, 100, 255), 1)
                 cv2.line(dummy, (320, 175), (320, 185), (0, 100, 255), 1)
-                
+
                 # Status overlays
                 cv2.putText(dummy, f"CROWDPULSE v4.0 [SIMULATION]", (12, 22), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (150, 150, 150), 1)
                 cv2.putText(dummy, f"DETECTED: {sim_count} PERSONS", (12, 42), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 180, 255), 1)
-                cv2.putText(dummy, f"MODEL: YOLOv26m | BYTETRACK", (12, 62), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (100, 100, 100), 1)
+                cv2.putText(dummy, f"MODEL: YOLOv8m | BYTETRACK", (12, 62), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (100, 100, 100), 1)
                 cv2.putText(dummy, f"TEAM FANTASTIC FOUR", (12, 340), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (237, 28, 36), 1)
-                
+
                 sim_params: list[int] = [int(cv2.IMWRITE_JPEG_QUALITY), 70]
                 _ret: bool
                 sim_buf: np.ndarray
