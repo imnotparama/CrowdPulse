@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { Users, Terminal, MessageSquare, Gauge, Wifi, Timer, Navigation, Camera, Siren } from 'lucide-react'
+import { Users, Terminal, MessageSquare, Gauge, Wifi, Timer, Navigation, Camera, Siren, Trash2 } from 'lucide-react'
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { AnimatePresence, motion } from 'framer-motion'
 import Header from './components/Header'
@@ -13,27 +13,37 @@ import AlertTimeline from './components/AlertTimeline'
 import EvidenceLocker from './components/EvidenceLocker'
 import AIChatSidebar from './components/AIChatSidebar'
 import SplashScreen from './components/SplashScreen'
-
 import PAAnnouncements from './components/PAAnnouncements'
+
+// ── Wi-Fi zone type ────────────────────────────────────────────────────────────
+interface WifiZone {
+  count: number;
+  rssi: number;
+  status: 'ACTIVE' | 'OFFLINE';
+}
 
 function App() {
   const [splashDone, setSplashDone] = useState(false)
 
-  // Hard safety net: regardless of SplashScreen internals or backend status,
-  // always show the dashboard within 5.5 seconds of mounting.
+  // Hard safety net — always show dashboard within 5.5s
   useEffect(() => {
     const safetyTimer = setTimeout(() => setSplashDone(true), 5500)
     return () => clearTimeout(safetyTimer)
   }, [])
+
   const [activeCamera, setActiveCamera] = useState('CAM_01')
   const [sosMode, setSosMode] = useState(false)
+
+  // ── PERFORMANCE: Image is NO LONGER in React state ────────────────────────
+  // It lives in a ref. VideoFeed polls it via rAF — zero re-renders per frame!
+  const imageRef = useRef<string | null>(null)
+
   const [stats, setStats] = useState({
     count: 0,
     density: 0,
     agitation: 0,
     status: 'SAFE',
     timestamp: Date.now(),
-    image: null as string | null,
     mode: 'OPTICAL',
     recording: false,
     predicted_density: 0,
@@ -46,13 +56,18 @@ function App() {
     stampede_risk: 0,
     flow_direction: { angle: 0, label: 'STABLE' },
     sectors: [] as { name: string, count: number, status: string }[],
-    wifi_probe_count: 0
+    wifi_probe_count: 0,
+    wifi_zones: {} as Record<string, WifiZone>,
   })
+
   const [history, setHistory] = useState<{time: string, density: number, predicted_density: number, agitation: number}[]>([])
   const [logs, setLogs] = useState<string[]>([])
   const [alertHistory, setAlertHistory] = useState<{id: number, type: string, severity: string, message: string, timestamp: number}[]>([])
-
   const [isGlitching, setIsGlitching] = useState(false)
+
+  // ── Stats update throttle: only re-render every Nth WS message ────────────
+  const wsMessageCount = useRef(0)
+  const STATS_UPDATE_INTERVAL = 3  // update React state every 3rd message
 
   const speakText = (text: string) => {
       if (!('speechSynthesis' in window)) return;
@@ -73,7 +88,7 @@ function App() {
   ])
   const [chatInput, setChatInput] = useState('')
   const [alerts, setAlerts] = useState<{lat: number, lng: number, type: string}[]>([])
-  
+
   const [lockerOpen, setLockerOpen] = useState(false)
   const [recordings, setRecordings] = useState<string[]>([])
   const [selectedVideo, setSelectedVideo] = useState<string | null>(null)
@@ -84,15 +99,18 @@ function App() {
   const reconnectAttempt = useRef(0)
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  // Track active ESP32 zones for Header
+  const [activeWifiZones, setActiveWifiZones] = useState(0)
+
   const ws = useRef<WebSocket | null>(null)
   const logContainerRef = useRef<HTMLDivElement>(null)
   const chatContainerRef = useRef<HTMLDivElement>(null)
-  
+
   const playSound = (type: 'beep' | 'alert' | 'click' | 'hum') => {
     if (!soundEnabled) return
     const AudioContext = window.AudioContext || (window as any).webkitAudioContext
     if (!AudioContext) return
-    
+
     const ctx = new AudioContext()
     const osc = ctx.createOscillator()
     const gain = ctx.createGain()
@@ -125,6 +143,7 @@ function App() {
     }
   }
 
+  // ── AI Chat ─────────────────────────────────────────────────────────────────
   const handleChatSubmit = (e: React.FormEvent) => {
       e.preventDefault()
       if (!chatInput.trim()) return
@@ -137,7 +156,7 @@ function App() {
       setTimeout(() => {
           let response = "Command not recognized."
           const lower = userMsg.toLowerCase()
-          
+
           if (lower.includes('status') || lower.includes('report')) {
               response = `System Status: ${stats.status}. Detected: ${stats.count} people. Density: ${stats.density.toFixed(2)}. Stampede Risk: ${stats.stampede_risk.toFixed(0)}/100. Pressure: ${stats.pressure_index.toFixed(0)}/100.`
           } else if (lower.includes('capacity')) {
@@ -147,11 +166,14 @@ function App() {
           } else if (lower.includes('evacuate') || lower.includes('exit')) {
               response = "Evacuation routes displayed on tactical map. 3 exit routes available. Recommend immediate deployment of crowd control barriers."
           } else if (lower.includes('scan') || lower.includes('search')) {
-              response = `Sector scan complete. ${stats.sectors.filter(s => s.status !== 'SAFE').length} zones showing elevated density. Wi-Fi probes detecting ${stats.wifi_probe_count} devices.`
+              response = `Sector scan complete. ${stats.sectors.filter(s => s.status !== 'SAFE').length} zones showing elevated density. Wi-Fi probes detecting ${stats.wifi_probe_count} estimated devices.`
+          } else if (lower.includes('wifi') || lower.includes('sensor')) {
+              const zoneCount = Object.keys(stats.wifi_zones).length
+              response = `Sensor network: ${activeWifiZones} active ESP32 zones out of ${zoneCount} deployed. Total estimated devices: ${stats.wifi_probe_count}.`
           } else if (lower.includes('generate report')) {
               response = `[POST-INCIDENT REPORT]\nPeak Capacity: ${stats.capacity_pct}%\nPeak Density: ${stats.density.toFixed(2)}\nStampede Risk: ${stats.stampede_risk.toFixed(0)}/100\nResponse: Autonomous units ready for dispatch.`
           } else if (lower.includes('help') || lower.includes('manual')) {
-              response = `[OPERATOR MANUAL]\nCommands: 'status', 'generate report', 'evacuate', 'scan'\nShortcuts:\n- [S] Toggle Emergency SOS\n- [T] Toggle Thermal Mode\n- [R] Toggle Recording\n- Click Map to view routes.`
+              response = `[OPERATOR MANUAL]\nCommands: 'status', 'generate report', 'evacuate', 'scan', 'wifi'\nShortcuts:\n- [S] Toggle Emergency SOS\n- [T] Toggle Thermal Mode\n- [R] Toggle Recording`
           } else if (lower.includes('hello') || lower.includes('hi')) {
               response = "Greetings, Operator. Team Fantastic Four Crowd Pulse safety monitoring active. How can I assist?"
           } else if (lower.includes('recording') || lower.includes('evidence')) {
@@ -161,7 +183,7 @@ function App() {
           } else {
               response = "Command not recognized. Analyzing query against CrowdPulse security protocols. Request clarification."
           }
-          
+
           setChatMessages(prev => [...prev, { role: 'ai', text: response }])
           playSound('beep')
           speakText(response)
@@ -200,8 +222,45 @@ function App() {
 
     ws.current.onmessage = (event) => {
       const data = JSON.parse(event.data)
+
+      // ── ALWAYS update image via ref (zero React re-render) ────────────────
+      if (data.image) {
+        imageRef.current = data.image
+      }
+
+      // ── Throttle React state updates to every 3rd frame ───────────────────
+      wsMessageCount.current += 1
+      const shouldUpdateStats = wsMessageCount.current % STATS_UPDATE_INTERVAL === 0
+
+      // Always handle alerts (time-sensitive)
+      if (data.crowd_alert) {
+          addLog(`CROWD_ALERT: ${data.crowd_alert.severity} - ${data.crowd_alert.type} in Zone ${data.crowd_alert.id}`)
+          playSound('alert')
+          if (data.crowd_alert.severity === 'CRITICAL') {
+              speakText(`Priority Alert: ${data.crowd_alert.message}`)
+          }
+
+          setPersistentAlert(data.crowd_alert)
+
+          setAlertHistory(prev => [{
+              ...data.crowd_alert,
+              timestamp: Date.now()
+          }, ...prev].slice(0, 20))
+
+          if (alertTimeoutRef.current) {
+              clearTimeout(alertTimeoutRef.current)
+          }
+          alertTimeoutRef.current = setTimeout(() => {
+              setPersistentAlert(null)
+          }, 5000)
+
+          setAlerts(prev => [...prev, { lat: 13.0827 + (Math.random()-0.5)*0.01, lng: 80.2707 + (Math.random()-0.5)*0.01, type: 'density' }])
+      }
+
+      if (!shouldUpdateStats) return;
+
       const isRecording = data.recording || false
-      
+
       setStats(prev => {
           if (prev.recording && !isRecording) {
               setTimeout(() => {
@@ -216,7 +275,6 @@ function App() {
             agitation: data.agitation || 0,
             status: data.status,
             timestamp: data.timestamp,
-            image: data.image,
             mode: data.mode || 'OPTICAL',
             recording: isRecording,
             predicted_density: data.predicted_density || data.density,
@@ -229,10 +287,16 @@ function App() {
             stampede_risk: data.stampede_risk || 0,
             flow_direction: data.flow_direction || { angle: 0, label: 'STABLE' },
             sectors: data.sectors || [],
-            wifi_probe_count: data.wifi_probe_count || 0
+            wifi_probe_count: data.wifi_probe_count || 0,
+            wifi_zones: data.wifi_zones || {},
           }
       })
-      
+
+      // Update active zone count for Header
+      const zones: Record<string, WifiZone> = data.wifi_zones || {}
+      const activeCount = Object.values(zones).filter(z => z.status === 'ACTIVE').length
+      setActiveWifiZones(activeCount)
+
       setHistory(prev => {
         const newHistory = [...prev, {
           time: new Date(data.timestamp * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
@@ -240,33 +304,8 @@ function App() {
           predicted_density: data.predicted_density || data.density,
           agitation: data.agitation || 0
         }]
-        return newHistory.slice(-20) 
+        return newHistory.slice(-20)
       })
-
-      // Handle Crowd Safety Alert
-      if (data.crowd_alert) {
-          addLog(`CROWD_ALERT: ${data.crowd_alert.severity} - ${data.crowd_alert.type} in Zone ${data.crowd_alert.id}`)
-          playSound('alert')
-          if (data.crowd_alert.severity === 'CRITICAL') {
-              speakText(`Priority Alert: ${data.crowd_alert.message}`)
-          }
-          
-          setPersistentAlert(data.crowd_alert)
-          
-          setAlertHistory(prev => [{
-              ...data.crowd_alert,
-              timestamp: Date.now()
-          }, ...prev].slice(0, 20))
-          
-          if (alertTimeoutRef.current) {
-              clearTimeout(alertTimeoutRef.current)
-          }
-          alertTimeoutRef.current = setTimeout(() => {
-              setPersistentAlert(null)
-          }, 5000)
-
-          setAlerts(prev => [...prev, { lat: 13.0827 + (Math.random()-0.5)*0.01, lng: 80.2707 + (Math.random()-0.5)*0.01, type: 'density' }])
-      }
 
       if (Math.random() > 0.98) {
         addLog(`ANALYSIS_COMPLETE: Frame processed. Objects: ${data.count}`)
@@ -276,7 +315,6 @@ function App() {
     ws.current.onclose = () => {
       setWsConnected(false)
       addLog("CONNECTION_LOST: Backend uplink severed.")
-      // Auto-reconnect with exponential backoff
       const delay = Math.min(1000 * Math.pow(2, reconnectAttempt.current), 10000)
       reconnectAttempt.current += 1
       addLog(`RECONNECTING: Attempt ${reconnectAttempt.current} in ${delay/1000}s...`)
@@ -299,12 +337,11 @@ function App() {
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      // Don't trigger shortcuts when typing in inputs
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
-      
+
       switch(e.key.toLowerCase()) {
         case 's':
-          if (e.ctrlKey || e.metaKey) return; // Don't override Ctrl+S
+          if (e.ctrlKey || e.metaKey) return;
           setSosMode(prev => {
             if (!prev) {
               addLog('🚨 EMERGENCY SOS ACTIVATED — ALL UNITS RESPOND')
@@ -361,8 +398,7 @@ function App() {
 
   const handleVoiceCommand = (cmd: string) => {
       addLog(`VOICE_CMD_RECEIVED: "${cmd}"`)
-      if (cmd === 'status') {
-      } else if (cmd === 'switch_thermal') {
+      if (cmd === 'switch_thermal') {
           sendCommand('set_mode', { mode: 'thermal' })
           speakText('Engaging thermal vision')
       } else if (cmd === 'switch_optical') {
@@ -379,23 +415,24 @@ function App() {
 
   const getStatusColor = (status: string) => {
     switch(status) {
-      case 'SAFE': return 'text-neon-green border-neon-green shadow-[0_0_10px_#0aff0a]';
-      case 'ELEVATED': return 'text-yellow-500 border-yellow-500 shadow-[0_0_10px_#eab308]';
-      case 'WARNING': return 'text-orange-500 border-orange-500 shadow-[0_0_10px_#f97316]';
-      case 'CRITICAL': return 'text-red-500 border-red-500 animate-pulse shadow-[0_0_15px_#ef4444]';
-      case 'EVACUATE': return 'text-red-500 border-red-500 animate-ping shadow-[0_0_25px_#ef4444]';
+      case 'SAFE': return 'text-neon-green border-neon-green';
+      case 'ELEVATED': return 'text-yellow-500 border-yellow-500';
+      case 'WARNING': return 'text-orange-500 border-orange-500';
+      case 'CRITICAL': return 'text-red-500 border-red-500';
+      case 'EVACUATE': return 'text-red-500 border-red-500';
       default: return 'text-amd-silver border-amd-silver';
     }
   }
 
-  const getCapacityColor = () => {
-    if (stats.capacity_pct > 85) return 'bg-red-500'
-    if (stats.capacity_pct > 65) return 'bg-orange-500'
-    if (stats.capacity_pct > 40) return 'bg-yellow-500'
-    return 'bg-emerald-500'
+  // ── Capacity bar gradient (width + color based on %age) ──────────────────
+  const getCapacityBarStyle = () => {
+    const pct = Math.min(stats.capacity_pct, 100)
+    return {
+      width: `${pct}%`,
+      // transition set in CSS class
+    }
   }
 
-  // Stable callback reference — won't cause SplashScreen's useEffect to re-run
   const handleSplashComplete = useCallback(() => setSplashDone(true), [])
 
   if (!splashDone) return <SplashScreen onComplete={handleSplashComplete} />
@@ -410,14 +447,19 @@ function App() {
 
       {/* Decorative Overlay */}
       <div className="absolute inset-0 pointer-events-none z-50 overflow-hidden">
-         <div className="absolute inset-0 scanlines opacity-50 mix-blend-overlay"></div>
-         <div className="absolute top-0 left-0 w-full h-6 bg-gradient-to-b from-black to-transparent z-10"></div>
-         <div className="absolute bottom-0 left-0 w-full h-6 bg-gradient-to-t from-black to-transparent z-10"></div>
+         <div className="absolute inset-0 scanlines opacity-50 mix-blend-overlay"/>
+         <div className="absolute top-0 left-0 w-full h-6 bg-gradient-to-b from-black to-transparent z-10"/>
+         <div className="absolute bottom-0 left-0 w-full h-6 bg-gradient-to-t from-black to-transparent z-10"/>
       </div>
 
-      <Header status={sosMode ? 'EVACUATE' : stats.status} getStatusColor={getStatusColor} wsConnected={wsConnected} />
+      <Header
+          status={sosMode ? 'EVACUATE' : stats.status}
+          getStatusColor={getStatusColor}
+          wsConnected={wsConnected}
+          activeWifiZones={activeWifiZones}
+      />
 
-      {/* Backend offline indicator — non-blocking, shown as a slim banner */}
+      {/* Backend offline banner */}
       {!wsConnected && (
         <div className="fixed top-[3.5rem] left-0 right-0 z-[9997] flex items-center justify-center gap-2 bg-yellow-900/80 border-b border-yellow-600/40 py-1 px-4 text-[10px] font-mono text-yellow-400 tracking-widest backdrop-blur-sm">
           <span className="w-1.5 h-1.5 rounded-full bg-yellow-400 animate-pulse" />
@@ -427,11 +469,11 @@ function App() {
 
       {/* Main Grid */}
       <main className="max-w-[1920px] mx-auto px-4 py-3 grid grid-cols-12 gap-3 h-[calc(100vh-3.5rem)] overflow-hidden relative">
-        
-        {/* Left Column: Stats & Logs */}
-        <div className="col-span-12 lg:col-span-3 flex flex-col gap-2 min-h-0 overflow-y-auto scrollbar-hide">
-          
-          {/* Capacity Tracker */}
+
+        {/* ── LEFT COLUMN ─────────────────────────────────────────────────── */}
+        <div className="col-span-12 lg:col-span-3 flex flex-col gap-2 min-h-0 overflow-y-auto scrollbar-hide hide-mobile">
+
+          {/* Crowd Capacity */}
           <div className="card bg-black/50">
             <div className="card-header !mb-2">
                 <span className="card-title"><Users size={12}/> CROWD CAPACITY</span>
@@ -442,48 +484,85 @@ function App() {
                     {stats.count}<span className="text-lg text-amd-silver/40">/{stats.max_capacity}</span>
                 </div>
                 <div className="text-right">
-                    <div className="text-xs font-mono text-amd-silver">{stats.capacity_pct}%</div>
+                    <div className="text-xs font-mono text-amd-silver">{stats.capacity_pct.toFixed(1)}%</div>
                     <div className="text-[9px] font-mono text-amd-silver/50">CAPACITY</div>
                 </div>
             </div>
-            <div className="w-full h-2 bg-gray-800/80 rounded-full overflow-hidden">
-                <div className={`h-full ${getCapacityColor()} transition-all duration-500 rounded-full`} style={{ width: `${stats.capacity_pct}%` }}/>
+            {/* Animated gradient capacity bar */}
+            <div className="w-full h-2.5 bg-gray-800/80 rounded-full overflow-hidden relative">
+                <div
+                    className="capacity-bar-gradient h-full rounded-full"
+                    style={getCapacityBarStyle()}
+                />
+                {/* Moving percentage label */}
+                {stats.capacity_pct > 5 && (
+                  <div
+                    className="absolute top-1/2 -translate-y-1/2 text-[7px] font-bold font-mono text-white/80 pointer-events-none"
+                    style={{ left: `calc(${Math.min(stats.capacity_pct, 95)}% - 16px)` }}
+                  >
+                    {stats.capacity_pct.toFixed(0)}%
+                  </div>
+                )}
             </div>
           </div>
 
           {/* Pressure Index */}
-          <StatsCard 
-              title="PRESSURE INDEX" 
-              value={stats.pressure_index.toFixed(0)} 
-              icon={Gauge} 
+          <StatsCard
+              title="PRESSURE INDEX"
+              value={stats.pressure_index.toFixed(0)}
+              icon={Gauge}
               color={stats.pressure_index > 60 ? "text-red-400" : stats.pressure_index > 30 ? "text-yellow-400" : "text-emerald-400"}
               subtext="Physical compression between detected individuals."
               chart={
                    <div className="w-full bg-gray-800 h-1.5 mt-2 rounded-full overflow-hidden">
-                     <div className={`${stats.pressure_index > 60 ? 'bg-red-500' : stats.pressure_index > 30 ? 'bg-yellow-500' : 'bg-emerald-500'} h-full transition-all duration-500 rounded-full`} style={{ width: `${stats.pressure_index}%` }}></div>
+                     <div className={`${stats.pressure_index > 60 ? 'bg-red-500' : stats.pressure_index > 30 ? 'bg-yellow-500' : 'bg-emerald-500'} h-full transition-all duration-500 rounded-full`} style={{ width: `${stats.pressure_index}%` }}/>
                    </div>
               }
           />
 
-          {/* Wi-Fi Probe Counter */}
+          {/* Wi-Fi / ESP32 Card */}
           <div className="card bg-black/50">
             <div className="card-header !mb-1">
-                <span className="card-title"><Wifi size={12}/> ESTIMATED DEVICES (WI-FI)</span>
-                <span className="text-[10px] font-mono text-neon-green animate-pulse">ACTIVE</span>
+                <span className="card-title"><Wifi size={12}/> ESTIMATED DEVICES</span>
+                <span className={`text-[10px] font-mono animate-pulse ${activeWifiZones > 0 ? 'text-neon-green' : 'text-amd-silver/40'}`}>
+                    {activeWifiZones > 0 ? 'LIVE' : 'SIMULATED'}
+                </span>
             </div>
-            <div className="flex items-end gap-2">
+            <div className="flex items-end gap-2 mb-2">
                 <div className="text-3xl font-mono font-bold tracking-tighter text-neon-blue">
                     {stats.wifi_probe_count}
                 </div>
                 <div className="text-[9px] font-mono text-amd-silver/50 pb-1">DEVICES DETECTED</div>
             </div>
-            <div className="text-[9px] font-mono text-amd-silver/40 mt-1">ESP32 sensor network • Privacy: Hashed</div>
+
+            {/* Zone breakdown table */}
+            {Object.keys(stats.wifi_zones).length > 0 ? (
+              <div className="mt-1 space-y-1">
+                <div className="grid grid-cols-4 gap-1 text-[7px] font-mono text-amd-silver/40 uppercase tracking-wider px-1">
+                  <span>ZONE</span><span className="text-center">CNT</span><span className="text-center">RSSI</span><span className="text-center">STATUS</span>
+                </div>
+                {Object.entries(stats.wifi_zones).map(([zoneName, zoneData]) => (
+                  <div key={zoneName} className="grid grid-cols-4 gap-1 text-[8px] font-mono items-center px-1 py-0.5 rounded bg-white/3 hover:bg-white/5 transition-colors">
+                    <span className="text-white/70 truncate">{zoneName}</span>
+                    <span className="text-center text-neon-blue">{zoneData.count}</span>
+                    <span className="text-center text-amd-silver/60">{zoneData.rssi.toFixed(0)}</span>
+                    <span className="flex justify-center">
+                      <span className={`w-1.5 h-1.5 rounded-full ${zoneData.status === 'ACTIVE' ? 'sensor-dot-active' : 'sensor-dot-offline'}`}/>
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="text-[9px] font-mono text-amd-silver/30 mt-1">
+                ESP32 sensor network • Privacy: Hashed MACs
+              </div>
+            )}
           </div>
 
           {/* Stampede Risk Gauge */}
           <RiskGauge risk={stats.stampede_risk} status={stats.status} />
 
-          {/* Time to Critical — only shows when density is rising */}
+          {/* Time to Critical */}
           {stats.time_to_critical >= 0 && stats.time_to_critical < 300 && (
             <div className="card bg-red-900/20 border-red-500/40">
                 <div className="flex items-center justify-between">
@@ -514,7 +593,7 @@ function App() {
 
         </div>
 
-        {/* Center Column: Main Feed */}
+        {/* ── CENTER COLUMN ────────────────────────────────────────────────── */}
         <div className="col-span-12 lg:col-span-6 flex flex-col gap-2 relative group min-h-0">
            {/* Multi-Camera Tabs */}
            <div className="flex items-center gap-1">
@@ -533,7 +612,7 @@ function App() {
                        {activeCamera === cam && <span className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" />}
                    </button>
                ))}
-               
+
                {/* Emergency SOS Button */}
                <button
                    onClick={() => {
@@ -565,12 +644,14 @@ function App() {
                </button>
             </div>
 
-           <VideoFeed 
-               image={stats.image}
+           {/* ── Video Feed — passes imageRef, not image string ── */}
+           <VideoFeed
+               imageRef={imageRef}
                isRecording={stats.recording}
                visionMode={stats.mode}
                activeCamera={activeCamera}
                soundEnabled={soundEnabled}
+               status={sosMode ? 'EVACUATE' : stats.status}
                flowDirection={stats.flow_direction}
                sectors={stats.sectors}
                onToggleRecord={() => sendCommand(stats.recording ? 'stop_recording' : 'start_recording')}
@@ -578,7 +659,7 @@ function App() {
                onToggleSound={() => setSoundEnabled(!soundEnabled)}
                onSetGeofence={(points) => sendCommand('set_geofence', { points })}
            />
-           
+
            {isGlitching && (
                <div className="absolute inset-0 bg-black z-50 flex items-center justify-center pointer-events-none">
                    <div className="text-amd-red font-mono text-xl font-bold animate-pulse tracking-widest glitch-text">
@@ -586,17 +667,29 @@ function App() {
                    </div>
                </div>
            )}
-           
+
            <VoiceCommand onCommand={handleVoiceCommand} />
         </div>
 
-        {/* Right Column: Charts, Map, Alerts */}
+        {/* ── RIGHT COLUMN ─────────────────────────────────────────────────── */}
         <div className="col-span-12 lg:col-span-3 flex flex-col gap-2 min-h-0 overflow-y-auto scrollbar-hide">
-           
-           {/* Density & Agitation Chart */}
-           <div className="card flex flex-col" style={{ minHeight: '160px', maxHeight: '200px' }}>
+
+           {/* Live Metrics Chart */}
+           <div className="card flex flex-col" style={{ minHeight: '180px', maxHeight: '220px' }}>
              <div className="card-header">
                <span className="card-title">LIVE METRICS</span>
+             </div>
+             {/* Chart Legend */}
+             <div className="flex gap-3 mb-1 px-1">
+               <div className="chart-legend-item text-amd-red">
+                 <span className="chart-legend-line bg-amd-red"/>DENSITY
+               </div>
+               <div className="chart-legend-item text-yellow-400">
+                 <span className="chart-legend-line bg-yellow-400"/>AGITATION
+               </div>
+               <div className="chart-legend-item text-neon-blue">
+                 <span className="chart-legend-line" style={{ background: '#00f3ff', borderTop: '1px dashed #00f3ff' }}/>PREDICTED
+               </div>
              </div>
              <div className="flex-1 w-full min-h-0">
                <ResponsiveContainer width="100%" height="100%">
@@ -606,15 +699,20 @@ function App() {
                         <stop offset="5%" stopColor="#ED1C24" stopOpacity={0.8}/>
                         <stop offset="95%" stopColor="#ED1C24" stopOpacity={0}/>
                       </linearGradient>
+                      <linearGradient id="agitGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#EAB308" stopOpacity={0.3}/>
+                        <stop offset="95%" stopColor="#EAB308" stopOpacity={0}/>
+                      </linearGradient>
                     </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#222" vertical={false} />
+                    {/* Subtle grid background */}
+                    <CartesianGrid strokeDasharray="3 3" stroke="#1a1a1a" vertical={true} />
                     <XAxis dataKey="time" hide />
                     <YAxis hide domain={[0, 'auto']}/>
-                    <Tooltip 
+                    <Tooltip
                       contentStyle={{ backgroundColor: '#000', borderColor: '#333', fontSize: '10px' }}
                       itemStyle={{ color: '#fff', fontSize: '10px' }}
                     />
-                    <Area type="monotone" dataKey="agitation" stroke="#EAB308" fill="none" strokeWidth={2} />
+                    <Area type="monotone" dataKey="agitation" stroke="#EAB308" fill="url(#agitGradient)" strokeWidth={1.5} />
                     <Area type="monotone" dataKey="predicted_density" stroke="#00f3ff" strokeDasharray="4 4" fill="none" strokeWidth={1} />
                     <Area type="monotone" dataKey="density" stroke="#ED1C24" fill="url(#cyberGradient)" strokeWidth={2} />
                  </AreaChart>
@@ -644,7 +742,7 @@ function App() {
            </div>
 
            {/* Live Map */}
-           <div className="flex-1 min-h-0">
+           <div className="flex-1 min-h-0" style={{ minHeight: '160px' }}>
                <LiveMap alerts={alerts} />
            </div>
 
@@ -656,19 +754,30 @@ function App() {
                capacity_pct={stats.capacity_pct}
            />
 
-           {/* Alert Timeline */}
-           <div className="card bg-black/50 flex flex-col" style={{ minHeight: '100px', maxHeight: '150px' }}>
+           {/* Alert History */}
+           <div className="card bg-black/50 flex flex-col" style={{ minHeight: '100px', maxHeight: '160px' }}>
                <div className="card-header !mb-1">
                    <span className="card-title text-amd-red">ALERT HISTORY</span>
-                   <span className="text-[9px] font-mono text-amd-silver/40">{alertHistory.length} events</span>
+                   <div className="flex items-center gap-2">
+                     <span className="text-[9px] font-mono text-amd-silver/40">{alertHistory.length} events</span>
+                     {alertHistory.length > 0 && (
+                       <button
+                         onClick={() => setAlertHistory([])}
+                         className="flex items-center gap-1 text-[8px] font-mono text-amd-silver/40 hover:text-red-400 transition-colors"
+                         title="Clear all alerts"
+                       >
+                         <Trash2 size={10}/> CLEAR ALL
+                       </button>
+                     )}
+                   </div>
                </div>
                <div className="flex-1 overflow-hidden min-h-0">
                    <AlertTimeline alerts={alertHistory} />
                </div>
            </div>
-            
+
            {/* Chat Trigger */}
-           <button 
+           <button
                  onClick={() => {
                      setChatOpen(!chatOpen)
                      playSound('click')
@@ -681,7 +790,7 @@ function App() {
         </div>
 
         {/* AI Chat Sidebar */}
-        <AIChatSidebar 
+        <AIChatSidebar
             chatOpen={chatOpen}
             setChatOpen={setChatOpen}
             chatMessages={chatMessages}
@@ -701,14 +810,16 @@ function App() {
         />
       </main>
 
-      {/* GLOBAL OVERLAYS - CROWD ALERT */}
+      {/* ── GLOBAL: Crowd Alert overlay ── */}
+      {/* AnimatePresence is deliberately placed OUTSIDE the main render cycle */}
       <div className="fixed inset-0 pointer-events-none z-[9999] overflow-hidden">
           <AnimatePresence>
               {persistentAlert && (
-                  <motion.div 
+                  <motion.div
                       initial={{ x: 100, opacity: 0 }}
                       animate={{ x: 0, opacity: 1 }}
                       exit={{ x: 100, opacity: 0 }}
+                      transition={{ duration: 0.2, ease: 'easeOut' }}
                       className="pointer-events-auto absolute top-20 right-8 z-50"
                   >
                       <CrowdAlert alert={persistentAlert} />

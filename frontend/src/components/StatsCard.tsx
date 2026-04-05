@@ -11,14 +11,21 @@ interface StatsCardProps {
     className?: string;
 }
 
+// ── Animated Number with micro-flash on value change ─────────────────────────
 const AnimatedNumber: React.FC<{ value: number, decimals?: number, className?: string }> = ({ value, decimals = 0, className }) => {
     const [display, setDisplay] = useState(value);
+    const [flashClass, setFlashClass] = useState('');
     const prevRef = useRef(value);
 
     useEffect(() => {
         const prev = prevRef.current;
         const diff = value - prev;
         if (Math.abs(diff) < 0.01) { setDisplay(value); prevRef.current = value; return; }
+
+        // Flash green on increase, red on decrease
+        const flash = diff > 0 ? 'flash-up' : 'flash-down';
+        setFlashClass(flash);
+        const flashTimer = setTimeout(() => setFlashClass(''), 700);
 
         const duration = 300;
         const startTime = performance.now();
@@ -33,9 +40,15 @@ const AnimatedNumber: React.FC<{ value: number, decimals?: number, className?: s
             else prevRef.current = value;
         };
         requestAnimationFrame(animate);
+
+        return () => clearTimeout(flashTimer);
     }, [value]);
 
-    return <span className={className}>{display.toFixed(decimals)}</span>;
+    return (
+        <span className={`${className} ${flashClass} transition-colors duration-100`}>
+            {display.toFixed(decimals)}
+        </span>
+    );
 };
 
 const StatsCard: React.FC<StatsCardProps> = ({ title, value, subtext, icon: Icon, color = "text-white", chart, className }) => {
@@ -51,7 +64,11 @@ const StatsCard: React.FC<StatsCardProps> = ({ title, value, subtext, icon: Icon
             <div className="flex items-end justify-between">
                <div className={`text-3xl font-mono font-bold tracking-tighter ${color}`}>
                  {isNumeric ? (
-                     <AnimatedNumber value={numericValue} decimals={value.toString().includes('.') ? (value.toString().split('.')[1]?.length || 0) : 0} className={color} />
+                     <AnimatedNumber
+                         value={numericValue}
+                         decimals={value.toString().includes('.') ? (value.toString().split('.')[1]?.length || 0) : 0}
+                         className={color}
+                     />
                  ) : value}
                </div>
                {subtext && (

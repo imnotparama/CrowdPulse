@@ -16,27 +16,8 @@ from ultralytics import YOLO
 
 from analysis import DensityAnalyzer
 
-# ─── Phone Stream ───────────────────────────────────────────────────────────────
+# ─── Phone Stream ────────────────────────────────────────────────────────────────
 PHONE_STREAM_URL = "http://192.168.1.6:8080/video"
-
-
-def _test_stream(url: str, timeout_sec: float = 4.0) -> bool:
-    """Try to open a VideoCapture and read one frame within timeout_sec.
-    Returns True if successful, False otherwise."""
-    try:
-        cap = cv2.VideoCapture(url)
-        cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
-        deadline = time.time() + timeout_sec
-        while time.time() < deadline:
-            ret, frame = cap.read()
-            if ret and frame is not None:
-                cap.release()
-                return True
-            time.sleep(0.1)
-        cap.release()
-    except Exception:
-        pass
-    return False
 
 
 class VideoProcessor:
@@ -46,7 +27,7 @@ class VideoProcessor:
         self.running: bool = False
         self.thread: Optional[threading.Thread] = None
 
-        # Track whether the active source is the phone stream (for reconnect logic)
+        # Track whether the active source is the HTTP phone stream
         self._using_phone_stream: bool = False
 
         # GPU auto-detect
@@ -61,9 +42,9 @@ class VideoProcessor:
         # State for optical flow
         self.prev_gray: Optional[np.ndarray] = None
 
-        # Warmup
-        dummy: np.ndarray = np.zeros((360, 640, 3), dtype=np.uint8)
-        self.model.predict(dummy, verbose=False)
+        # Warmup at 320x180 — matches inference resolution
+        dummy: np.ndarray = np.zeros((180, 320, 3), dtype=np.uint8)
+        self.model.predict(dummy, verbose=False, imgsz=320)
         print(f"[CrowdPulse] {model_name} warmed up on {self.device}")
 
         self.analyzer: DensityAnalyzer = DensityAnalyzer()
@@ -83,20 +64,31 @@ class VideoProcessor:
         self.geofences: list[list[float]] = []
         self.alerts: list[dict[str, Any]] = []
 
+        # ── Wi-Fi zones reference ─────────────────────────────────────────────
+        # This is populated by main.py after construction to avoid circular import.
+        # { zone_name: { count, rssi, timestamp } }
+        self.wifi_zones: dict[str, Any] = {}
+
         # FPS tracking
         self.fps_counter: deque[float] = deque(maxlen=60)
         self.current_fps: float = 0.0
 
-        # Frame pacing
+        # Frame pacing (only used on CUDA)
         self.source_fps: float = 30.0
         self.frame_interval: float = 1.0 / 30.0
 
-        # HYBRID MODE: Detect every N frames, render all frames
-        # On CPU: run detection every 4 frames — intermediate frames reuse cached boxes at full speed
-        self.detect_interval: int = 4 if self.device == "cpu" else 1
+        # ── PERFORMANCE: Detect every N frames, render ALL frames ───────────────
+        # CPU: detect every 10 frames — ~10x less YOLO inference load → 15-25 FPS
+        # GPU: detect every frame for maximum accuracy
+        self.detect_interval: int = 10 if self.device == "cpu" else 1
         self.last_detections: list[tuple[float, float, float, float]] = []
         self.last_boxes_raw: list[dict[str, Any]] = []
         self.last_analysis: Optional[dict[str, Any]] = None
+
+        # ── PERFORMANCE: WebSocket frame skip counter ────────────────────────────
+        # Only push to WebSocket every 2nd processed frame on CPU
+        self._ws_frame_counter: int = 0
+        self._ws_skip: int = 2 if self.device == "cpu" else 1
 
         os.makedirs("backend/recordings", exist_ok=True)
 
@@ -105,28 +97,34 @@ class VideoProcessor:
             self._resolve_source()
 
     # ─────────────────────────────────────────────────────────────────────────────
-    # SOURCE PRIORITY RESOLUTION
-    # Priority 1: Phone stream (MJPEG via IP Webcam)
-    # Priority 2: Local video files in backend/videos/
-    # Priority 3: Simulation mode (source = None → cap stays None)
+    # SOURCE PRIORITY RESOLUTION — Phone stream ALWAYS tried first
     # ─────────────────────────────────────────────────────────────────────────────
     def _resolve_source(self) -> None:
-        # 1 — Phone stream
+        # ── Priority 1: Phone stream ──────────────────────────────────────────────
         print(f"[CrowdPulse] Probing phone stream: {PHONE_STREAM_URL}")
-        if _test_stream(PHONE_STREAM_URL):
+        test = cv2.VideoCapture(PHONE_STREAM_URL)
+        test.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+        opened: bool = test.isOpened()
+        ret: bool = False
+        if opened:
+            ret, _ = test.read()
+        test.release()
+
+        if opened and ret:
             self.video_source = PHONE_STREAM_URL
             self._using_phone_stream = True
-            print("[CrowdPulse] Phone stream OK — using as primary source.")
+            print("[CrowdPulse] ✅ Phone stream connected!")
+            time.sleep(0.5)
             return
 
-        print("[CrowdPulse] Phone stream unavailable.")
+        print("[CrowdPulse] ❌ Phone stream failed, trying local videos...")
 
-        # 2 — Local video files
+        # ── Priority 2: Local video files ─────────────────────────────────────────
         search_patterns: list[str] = [
             "backend/videos/*.mp4", "backend/videos/*.avi",
             "backend/videos/*.mov", "backend/videos/*.mkv",
-            "videos/*.mp4", "videos/*.avi",
-            "videos/*.mov", "videos/*.mkv",
+            "videos/*.mp4",  "videos/*.avi",
+            "videos/*.mov",  "videos/*.mkv",
             "./*.mp4",
         ]
         found_videos: list[str] = []
@@ -136,12 +134,12 @@ class VideoProcessor:
         if found_videos:
             self.video_source = os.path.abspath(found_videos[0])
             self._using_phone_stream = False
-            print(f"[CrowdPulse] Video: {self.video_source}")
+            print(f"[CrowdPulse] 📹 Local video: {self.video_source}")
             return
 
-        # 3 — Simulation mode
-        print("[CrowdPulse] No video files found. Simulation mode.")
-        self.video_source = None          # cap stays None → simulation branch
+        # ── Priority 3: Simulation mode ───────────────────────────────────────────
+        print("[CrowdPulse] 🔲 No video found. Running in simulation mode.")
+        self.video_source = None
 
     # ─────────────────────────────────────────────────────────────────────────────
 
@@ -151,11 +149,11 @@ class VideoProcessor:
 
         if self.video_source is not None:
             self.cap = cv2.VideoCapture(self.video_source)
-            if self._using_phone_stream:
-                self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+            # Minimal buffer — critical for MJPEG streams and phone cams to avoid lag
+            self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
 
             if not self.cap.isOpened():
-                print(f"[CrowdPulse] Cannot open {self.video_source}. Simulation mode.")
+                print(f"[CrowdPulse] Cannot open {self.video_source}. Falling back to simulation.")
                 self.cap = None
                 self._using_phone_stream = False
             else:
@@ -163,7 +161,7 @@ class VideoProcessor:
                 if src_fps and src_fps > 0:
                     self.source_fps = src_fps
                     self.frame_interval = 1.0 / src_fps
-                    print(f"[CrowdPulse] Source FPS: {src_fps:.1f}")
+                print(f"[CrowdPulse] Capture opened. Source FPS: {self.source_fps:.1f}")
 
         self.running = True
         self.thread = threading.Thread(target=self._process_loop, daemon=True)
@@ -246,40 +244,71 @@ class VideoProcessor:
                            cv2.FONT_HERSHEY_SIMPLEX, 0.35, color, 1)
         return frame
 
-    # ─── YOLO + ByteTrack ────────────────────────────────────────────────────────
+    # ─── YOLO Detection ──────────────────────────────────────────────────────────
+    # CPU:  model.predict() at 320x180 (no tracker overhead — 3x faster than track)
+    # CUDA: model.track()  at 320x180 with ByteTrack for full ID persistence
+    # Coordinates are always scaled back to the 640x360 render resolution.
     def _run_detection(self, frame: np.ndarray, width: int, height: int) -> tuple[list[tuple[float, float, float, float]], list[dict[str, Any]]]:
-        results = self.model.track(
-            frame, verbose=False, persist=True,
-            iou=0.45, conf=0.20,
-            tracker="bytetrack.yaml",
-            imgsz=480, classes=[0], max_det=100
-        )
+        # ── Resize to 320x180 for YOLO inference only ────────────────────────────
+        # Display frame stays at 640x360 — we scale coords back after inference.
+        yolo_frame = cv2.resize(frame, (320, 180))
 
         detections: list[tuple[float, float, float, float]] = []
         current_ids: list[int] = []
         boxes_data: list[dict[str, Any]] = []
 
+        if self.device == "cuda":
+            # GPU: full ByteTrack tracking for ID persistence
+            results = self.model.track(
+                yolo_frame, verbose=False, persist=True,
+                iou=0.45, conf=0.30,
+                tracker="bytetrack.yaml",
+                imgsz=320, classes=[0], max_det=30
+            )
+        else:
+            # CPU: plain predict() — significantly faster, no tracker overhead
+            results = self.model.predict(
+                yolo_frame, verbose=False,
+                iou=0.45, conf=0.30,
+                imgsz=320, classes=[0], max_det=30
+            )
+
+        # Scale factor to map 320x180 YOLO coordinates → 640x360 render coordinates
+        scale_x: float = width / 320.0
+        scale_y: float = height / 180.0
+
         if results and len(results) > 0:
             boxes = results[0].boxes
-            for box in boxes:
+            for idx, box in enumerate(boxes):
                 if int(box.cls[0]) != 0:
                     continue
 
-                x1, y1, x2, y2 = box.xyxy[0].tolist()
+                # Scale coordinates back to render resolution
+                rx1, ry1, rx2, ry2 = box.xyxy[0].tolist()
+                x1 = rx1 * scale_x
+                y1 = ry1 * scale_y
+                x2 = rx2 * scale_x
+                y2 = ry2 * scale_y
                 detections.append((x1, y1, x2, y2))
 
                 cx: int = int((x1+x2)/2)
                 cy: int = int((y1+y2)/2)
 
+                # On CUDA, use real tracker IDs; on CPU, use sequential enumerate index
                 if box.id is not None:
                     tid: int = int(box.id.item())
-                    current_ids.append(tid)
-                    if tid not in self.track_history:
-                        self.track_history[tid] = []
-                    self.track_history[tid].append(((cx, cy), time.time()))
-                    if len(self.track_history[tid]) > 20:
-                        self.track_history[tid] = self.track_history[tid][-20:]
+                else:
+                    # CPU predict() has no IDs — use sequential index for track_history
+                    tid = idx
 
+                current_ids.append(tid)
+                if tid not in self.track_history:
+                    self.track_history[tid] = []
+                self.track_history[tid].append(((cx, cy), time.time()))
+                if len(self.track_history[tid]) > 20:
+                    self.track_history[tid] = self.track_history[tid][-20:]
+
+                # Heatmap update (already gated in main loop to every detect_interval)
                 if self.heatmap_accumulator is not None:
                     try:
                         self.heatmap_accumulator[
@@ -301,7 +330,7 @@ class VideoProcessor:
                         color = (0, 255, 0)
 
                 conf: float = float(box.conf[0])
-                label: str = f"ID:{int(box.id)}" if box.id is not None else f"{conf:.0%}"
+                label: str = f"ID:{tid}" if box.id is not None else f"{conf:.0%}"
 
                 boxes_data.append({
                     'coords': (x1, y1, x2, y2),
@@ -309,6 +338,7 @@ class VideoProcessor:
                     'label': label
                 })
 
+        # Clean stale track history entries
         for tid in list(self.track_history.keys()):
             if tid not in current_ids:
                 del self.track_history[tid]
@@ -319,30 +349,6 @@ class VideoProcessor:
         self.last_analysis = self.analyzer.analyze(detections, (width, height))
 
         return detections, boxes_data
-
-    # ─── Phone Stream Reconnect ───────────────────────────────────────────────────
-    def _reconnect_phone_stream(self) -> bool:
-        """Release the current cap and attempt to reconnect to the phone stream.
-        Returns True if reconnected successfully."""
-        print("[CrowdPulse] Phone stream dropped. Releasing cap...")
-        if self.cap is not None:
-            self.cap.release()
-            self.cap = None
-        time.sleep(2.0)
-        print(f"[CrowdPulse] Attempting reconnect to {PHONE_STREAM_URL}...")
-        try:
-            new_cap = cv2.VideoCapture(PHONE_STREAM_URL)
-            new_cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
-            ret, frame = new_cap.read()
-            if ret and frame is not None:
-                self.cap = new_cap
-                print("[CrowdPulse] Phone stream reconnected.")
-                return True
-            new_cap.release()
-        except Exception:
-            traceback.print_exc()
-        print("[CrowdPulse] Reconnect failed. Will retry next iteration.")
-        return False
 
     # ─── Main Processing Loop ────────────────────────────────────────────────────
     def _process_loop(self) -> None:
@@ -358,12 +364,15 @@ class VideoProcessor:
                 ret, frame = self.cap.read()
 
                 if not ret:
-                    if self._using_phone_stream:
-                        # Phone stream dropped — try to reconnect, never crash
-                        reconnected = self._reconnect_phone_stream()
-                        if not reconnected:
-                            # Wait a moment before next retry attempt
-                            time.sleep(2.0)
+                    # ── Stream/file dropped ───────────────────────────────────────
+                    if isinstance(self.video_source, str) and self.video_source.startswith("http"):
+                        print("[CrowdPulse] Stream dropped. Reconnecting...")
+                        time.sleep(2)
+                        if self.cap is not None:
+                            self.cap.release()
+                        self.cap = cv2.VideoCapture(self.video_source)
+                        self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+                        self.track_history.clear()
                         continue
                     else:
                         # Local video file — loop back to start
@@ -371,6 +380,7 @@ class VideoProcessor:
                         self.track_history.clear()
                         continue
 
+                # ── Resize for RENDERING at 640x360 ──────────────────────────────
                 frame = cv2.resize(frame, (640, 360))
                 height: int = 360
                 width: int = 640
@@ -380,14 +390,20 @@ class VideoProcessor:
                     self.heatmap_accumulator = np.zeros((height, width), dtype=np.float32)
 
                 try:
+                    # ── Run YOLO detection every Nth frame ────────────────────────
+                    # CPU: every 10 frames (detect_interval=10) — massive FPS boost
+                    # GPU: every frame (detect_interval=1)
                     if frame_count % self.detect_interval == 0 or self.last_analysis is None:
                         self._run_detection(frame, width, height)
 
                     if not self.heatmap_mode and self.last_boxes_raw:
                         self._draw_detections(frame, self.last_boxes_raw, width, height)
 
+                    # ── Heatmap decay — only every detect_interval frames on CPU ──
+                    # Saves numpy multiply operations on non-detection frames
                     if self.heatmap_accumulator is not None:
-                        self.heatmap_accumulator *= 0.95
+                        if self.device == "cuda" or frame_count % self.detect_interval == 0:
+                            self.heatmap_accumulator *= 0.95
 
                     final_frame: np.ndarray = frame
                     if self.heatmap_mode and self.heatmap_accumulator is not None:
@@ -398,18 +414,29 @@ class VideoProcessor:
                     if self.is_recording and self.video_writer is not None:
                         self.video_writer.write(final_frame)
 
-                    encode_params: list[int] = [int(cv2.IMWRITE_JPEG_QUALITY), 65]
-                    ret_enc: bool
-                    buf: np.ndarray
-                    ret_enc, buf = cv2.imencode('.jpg', final_frame, encode_params)
-                    b64: str = base64.b64encode(buf).decode('utf-8')
-
+                    # ── FPS counter ───────────────────────────────────────────────
                     now: float = time.time()
                     self.fps_counter.append(now)
                     if len(self.fps_counter) > 1:
                         elapsed: float = self.fps_counter[-1] - self.fps_counter[0]
                         if elapsed > 0:
                             self.current_fps = (len(self.fps_counter) - 1) / elapsed
+
+                    # ── WebSocket frame skipping ──────────────────────────────────
+                    # On CPU: only push to WS every 2nd frame → halves bandwidth
+                    self._ws_frame_counter = self._ws_frame_counter + 1  # pyre-ignore
+                    if self._ws_frame_counter % self._ws_skip != 0:
+                        # Skip encoding this frame for WS — yield briefly then continue
+                        time.sleep(0.001)
+                        continue
+
+                    # ── JPEG encode at quality 45 ─────────────────────────────────
+                    # Lower quality = faster encode + smaller payload (was 50/65)
+                    encode_params: list[int] = [int(cv2.IMWRITE_JPEG_QUALITY), 45]
+                    ret_enc: bool
+                    buf: np.ndarray
+                    ret_enc, buf = cv2.imencode('.jpg', final_frame, encode_params)
+                    b64: str = base64.b64encode(buf).decode('utf-8')
 
                     analysis_result: dict[str, Any]
                     if self.last_analysis is not None:
@@ -421,6 +448,28 @@ class VideoProcessor:
                     analysis_result['recording'] = self.is_recording
                     analysis_result['agitation'] = self.agitation_index
                     analysis_result['fps'] = float(int(self.current_fps * 10) / 10)
+
+                    # ── Wi-Fi zones integration ───────────────────────────────────
+                    # self.wifi_zones is set by main.py after construction (avoids circular import)
+                    now_ts = time.time()
+                    wifi_total = 0
+                    wifi_zone_payload: dict[str, Any] = {}
+                    for zone_name, zone_data in self.wifi_zones.items():
+                        age = now_ts - zone_data.get("timestamp", 0)
+                        zone_status = "OFFLINE" if age > 10 else "ACTIVE"
+                        if zone_status == "ACTIVE":
+                            wifi_total += int(zone_data.get("count", 0))
+                        wifi_zone_payload[zone_name] = {
+                            "count": int(zone_data.get("count", 0)),
+                            "rssi": float(zone_data.get("rssi", 0)),
+                            "status": zone_status
+                        }
+
+                    if wifi_total > 0:
+                        analysis_result['wifi_probe_count'] = wifi_total
+                    # else: analysis_result already has the estimate from analyzer.analyze()
+
+                    analysis_result['wifi_zones'] = wifi_zone_payload
 
                     # ── Real Optical Flow ─────────────────────────────────────────
                     curr_gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
@@ -440,8 +489,7 @@ class VideoProcessor:
 
                     analysis_result['predicted_density'] = self.analyzer.predict_future_density()
 
-                    # ── Legitimate Density / Pressure / Flow alerts ───────────────
-                    # NOTE: No fake POI/facial-match alerts — only real density-based triggers.
+                    # ── Density/pressure/flow alerts ──────────────────────────────
                     if frame_count % self.detect_interval == 0:
                         density: float = float(analysis_result.get('density', 0))
                         det_count: int = len(self.last_detections)
@@ -467,10 +515,14 @@ class VideoProcessor:
                 except Exception:
                     traceback.print_exc()
 
-                proc_elapsed: float = time.time() - loop_start
-                wait: float = self.frame_interval - proc_elapsed
-                if wait > 0:
-                    time.sleep(wait)
+                # ── Frame pacing: ONLY on CUDA ────────────────────────────────────
+                # On CPU we are already slower than real-time — artificial sleep
+                # kills FPS further. Only pace on GPU to cap at source rate.
+                if self.device == "cuda":
+                    proc_elapsed: float = time.time() - loop_start
+                    wait: float = self.frame_interval - proc_elapsed
+                    if wait > 0:
+                        time.sleep(wait)
 
             else:
                 # ── Simulation mode ───────────────────────────────────────────────
@@ -480,16 +532,16 @@ class VideoProcessor:
                     [(0.0, 0.0, 0.0, 0.0)] * sim_count, (640, 360)
                 )
 
-                # Rich simulation frame: animated crowd dots on dark background
+                # Rich simulation frame
                 dummy: np.ndarray = np.zeros((360, 640, 3), dtype=np.uint8)
 
-                # Draw tactical grid
+                # Tactical grid
                 for gx in range(0, 640, 64):
                     cv2.line(dummy, (gx, 0), (gx, 360), (20, 20, 20), 1)
                 for gy in range(0, 360, 36):
                     cv2.line(dummy, (0, gy), (640, gy), (20, 20, 20), 1)
 
-                # Draw animated crowd dots
+                # Animated crowd dots
                 rng = np.random.default_rng(int(t * 5) % 9999)
                 for _ in range(sim_count):
                     px = int(320 + 200 * rng.standard_normal() * 0.5 + 15 * np.sin(t + rng.uniform(0, 6.28)))
@@ -500,23 +552,23 @@ class VideoProcessor:
                     cv2.circle(dummy, (px, py), 3, (0, intensity // 3, intensity), -1)
                     cv2.circle(dummy, (px, py), 5, (0, intensity // 5, intensity // 2), 1)
 
-                # Pulsing heat zone in the centre
+                # Pulsing heat zone
                 pulse_r: int = int(90 + 15 * np.sin(t * 2))
                 cv2.circle(dummy, (320, 180), pulse_r, (0, 0, 60), -1)
                 cv2.circle(dummy, (320, 180), pulse_r, (0, 50, 150), 2)
                 cv2.circle(dummy, (320, 180), pulse_r - 20, (0, 0, 100), 2)
 
-                # Crosshair at centre
+                # Crosshair
                 cv2.line(dummy, (315, 180), (325, 180), (0, 100, 255), 1)
                 cv2.line(dummy, (320, 175), (320, 185), (0, 100, 255), 1)
 
                 # Status overlays
                 cv2.putText(dummy, f"CROWDPULSE v4.0 [SIMULATION]", (12, 22), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (150, 150, 150), 1)
-                cv2.putText(dummy, f"DETECTED: {sim_count} PERSONS", (12, 42), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 180, 255), 1)
-                cv2.putText(dummy, f"MODEL: YOLOv8m | BYTETRACK", (12, 62), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (100, 100, 100), 1)
-                cv2.putText(dummy, f"TEAM FANTASTIC FOUR", (12, 340), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (237, 28, 36), 1)
+                cv2.putText(dummy, f"DETECTED: {sim_count} PERSONS",  (12, 42), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 180, 255), 1)
+                cv2.putText(dummy, f"MODEL: YOLOv8m | SIMULATION",    (12, 62), cv2.FONT_HERSHEY_SIMPLEX, 0.4,  (100, 100, 100), 1)
+                cv2.putText(dummy, f"TEAM FANTASTIC FOUR",            (12, 340), cv2.FONT_HERSHEY_SIMPLEX, 0.4,  (237, 28, 36), 1)
 
-                sim_params: list[int] = [int(cv2.IMWRITE_JPEG_QUALITY), 70]
+                sim_params: list[int] = [int(cv2.IMWRITE_JPEG_QUALITY), 45]
                 _ret: bool
                 sim_buf: np.ndarray
                 _ret, sim_buf = cv2.imencode('.jpg', dummy, sim_params)
@@ -526,6 +578,7 @@ class VideoProcessor:
                 analysis_result_sim['predicted_density'] = float(analysis_result_sim.get('density', 0)) * (1.0 + (analysis_result_sim['agitation'] / 100.0) * 0.5)
                 analysis_result_sim['mode'] = 'THERMAL' if self.heatmap_mode else 'OPTICAL'
                 analysis_result_sim['fps'] = 30.0
+                analysis_result_sim['wifi_zones'] = {}
                 frame_data = analysis_result_sim
                 time.sleep(0.033)
 
