@@ -17,7 +17,7 @@ from ultralytics import YOLO
 from analysis import DensityAnalyzer
 
 # ─── Phone Stream ────────────────────────────────────────────────────────────────
-PHONE_STREAM_URL = "http://192.168.1.6:8080/video"
+PHONE_STREAM_URL = "http://10.85.22.197:8080/video"
 
 
 class VideoProcessor:
@@ -104,17 +104,17 @@ class VideoProcessor:
         print(f"[CrowdPulse] Probing phone stream: {PHONE_STREAM_URL}")
         test = cv2.VideoCapture(PHONE_STREAM_URL)
         test.set(cv2.CAP_PROP_BUFFERSIZE, 1)
-        opened: bool = test.isOpened()
-        ret: bool = False
-        if opened:
-            ret, _ = test.read()
+        connected = False
+        if test.isOpened():
+            ret, frame_test = test.read()
+            if ret and frame_test is not None:
+                connected = True
         test.release()
 
-        if opened and ret:
+        if connected:
             self.video_source = PHONE_STREAM_URL
             self._using_phone_stream = True
             print("[CrowdPulse] ✅ Phone stream connected!")
-            time.sleep(0.5)
             return
 
         print("[CrowdPulse] ❌ Phone stream failed, trying local videos...")
@@ -249,8 +249,7 @@ class VideoProcessor:
     # CUDA: model.track()  at 320x180 with ByteTrack for full ID persistence
     # Coordinates are always scaled back to the 640x360 render resolution.
     def _run_detection(self, frame: np.ndarray, width: int, height: int) -> tuple[list[tuple[float, float, float, float]], list[dict[str, Any]]]:
-        # ── Resize to 320x180 for YOLO inference only ────────────────────────────
-        # Display frame stays at 640x360 — we scale coords back after inference.
+        # Resize for YOLO inference
         yolo_frame = cv2.resize(frame, (320, 180))
 
         detections: list[tuple[float, float, float, float]] = []
@@ -261,7 +260,7 @@ class VideoProcessor:
             # GPU: full ByteTrack tracking for ID persistence
             results = self.model.track(
                 yolo_frame, verbose=False, persist=True,
-                iou=0.45, conf=0.30,
+                iou=0.25, conf=0.35,
                 tracker="bytetrack.yaml",
                 imgsz=320, classes=[0], max_det=30
             )
@@ -269,11 +268,11 @@ class VideoProcessor:
             # CPU: plain predict() — significantly faster, no tracker overhead
             results = self.model.predict(
                 yolo_frame, verbose=False,
-                iou=0.45, conf=0.30,
+                iou=0.25, conf=0.35,
                 imgsz=320, classes=[0], max_det=30
             )
 
-        # Scale factor to map 320x180 YOLO coordinates → 640x360 render coordinates
+        # Scale factor to map YOLO coordinates → 640x360 render coordinates
         scale_x: float = width / 320.0
         scale_y: float = height / 180.0
 
@@ -365,7 +364,7 @@ class VideoProcessor:
 
                 if not ret:
                     # ── Stream/file dropped ───────────────────────────────────────
-                    if isinstance(self.video_source, str) and self.video_source.startswith("http"):
+                    if isinstance(self.video_source, str) and "http" in self.video_source:
                         print("[CrowdPulse] Stream dropped. Reconnecting...")
                         time.sleep(2)
                         if self.cap is not None:
@@ -380,7 +379,10 @@ class VideoProcessor:
                         self.track_history.clear()
                         continue
 
-                # ── Resize for RENDERING at 640x360 ──────────────────────────────
+                # ── Aspect ratio crop & resize for RENDERING at 640x360 ───────────
+                h_orig, w_orig = frame.shape[:2]
+                if w_orig / h_orig > 2.0:  # ultra-wide, crop center
+                    frame = frame[:, w_orig//4:3*w_orig//4]
                 frame = cv2.resize(frame, (640, 360))
                 height: int = 360
                 width: int = 640
@@ -421,14 +423,6 @@ class VideoProcessor:
                         elapsed: float = self.fps_counter[-1] - self.fps_counter[0]
                         if elapsed > 0:
                             self.current_fps = (len(self.fps_counter) - 1) / elapsed
-
-                    # ── WebSocket frame skipping ──────────────────────────────────
-                    # On CPU: only push to WS every 2nd frame → halves bandwidth
-                    self._ws_frame_counter = self._ws_frame_counter + 1  # pyre-ignore
-                    if self._ws_frame_counter % self._ws_skip != 0:
-                        # Skip encoding this frame for WS — yield briefly then continue
-                        time.sleep(0.001)
-                        continue
 
                     # ── JPEG encode at quality 45 ─────────────────────────────────
                     # Lower quality = faster encode + smaller payload (was 50/65)
@@ -515,14 +509,7 @@ class VideoProcessor:
                 except Exception:
                     traceback.print_exc()
 
-                # ── Frame pacing: ONLY on CUDA ────────────────────────────────────
-                # On CPU we are already slower than real-time — artificial sleep
-                # kills FPS further. Only pace on GPU to cap at source rate.
-                if self.device == "cuda":
-                    proc_elapsed: float = time.time() - loop_start
-                    wait: float = self.frame_interval - proc_elapsed
-                    if wait > 0:
-                        time.sleep(wait)
+
 
             else:
                 # ── Simulation mode ───────────────────────────────────────────────
@@ -582,8 +569,9 @@ class VideoProcessor:
                 frame_data = analysis_result_sim
                 time.sleep(0.033)
 
-            with self.lock:
-                self.latest_data = frame_data
+            if frame_count % 2 == 0:
+                with self.lock:
+                    self.latest_data = frame_data
 
     def get_latest_data(self) -> Optional[dict[str, Any]]:
         with self.lock:

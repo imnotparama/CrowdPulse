@@ -13,9 +13,9 @@ class DensityAnalyzer:
         self.prev_positions: dict[int, tuple[tuple[float, float], float]] = {}
 
         self.risk_thresholds: dict[str, float] = {
-            "elevated": 0.3,
-            "warning": 0.5,
-            "critical": 0.75
+            "elevated": 0.15,
+            "warning": 0.30,
+            "critical": 0.50
         }
 
     def analyze(self, detections: list[tuple[float, float, float, float]], frame_dims: tuple[int, int]) -> dict[str, Any]:
@@ -190,11 +190,11 @@ class DensityAnalyzer:
 
         for s in sectors:
             cnt: int = int(s["count"])
-            if cnt > 6:
+            if cnt > 15:
                 s["status"] = "CRITICAL"
-            elif cnt > 4:
+            elif cnt > 8:
                 s["status"] = "WARNING"
-            elif cnt > 2:
+            elif cnt > 3:
                 s["status"] = "ELEVATED"
 
         return sectors
