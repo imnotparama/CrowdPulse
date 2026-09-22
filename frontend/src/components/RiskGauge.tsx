@@ -1,149 +1,135 @@
 import React from 'react';
-import { AlertTriangle, Shield, ShieldAlert, ShieldCheck } from 'lucide-react';
 
 interface RiskGaugeProps {
-    risk: number;
-    status: string;
+  risk: number;
+  status: string;
 }
 
-const RiskGauge: React.FC<RiskGaugeProps> = ({ risk, status }) => {
-    const getColor = () => {
-        if (risk > 75) return { stroke: '#ef4444', text: 'text-red-400', glow: 'rgba(239,68,68,0.6)' };
-        if (risk > 50) return { stroke: '#f97316', text: 'text-orange-400', glow: 'rgba(249,115,22,0.5)' };
-        if (risk > 25) return { stroke: '#eab308', text: 'text-yellow-400', glow: 'rgba(234,179,8,0.4)' };
-        return { stroke: '#10b981', text: 'text-emerald-400', glow: 'rgba(16,185,129,0.4)' };
+export const RiskGauge: React.FC<RiskGaugeProps> = ({ risk, status }) => {
+  const clampedRisk = Math.min(Math.max(risk, 0), 100);
+
+  const getTheme = () => {
+    if (clampedRisk > 70) {
+      return {
+        color: '#ff1744',
+        badge: 'badge-status-critical',
+        label: 'CRITICAL',
+        gradientStart: '#ff1744',
+        gradientEnd: '#ff5252',
+      };
+    }
+    if (clampedRisk > 40) {
+      return {
+        color: '#ff9800',
+        badge: 'badge-status-warning',
+        label: 'WARNING',
+        gradientStart: '#ff9800',
+        gradientEnd: '#ffb74d',
+      };
+    }
+    if (clampedRisk > 20) {
+      return {
+        color: '#ffc107',
+        badge: 'badge-status-elevated',
+        label: 'ELEVATED',
+        gradientStart: '#ffc107',
+        gradientEnd: '#ffe082',
+      };
+    }
+    return {
+      color: '#00ff88',
+      badge: 'badge-status-safe',
+      label: 'SAFE',
+      gradientStart: '#00ff88',
+      gradientEnd: '#69f0ae',
     };
+  };
 
-    const getIcon = () => {
-        if (status === 'CRITICAL') return <ShieldAlert size={14} className="text-red-400 animate-pulse" />;
-        if (status === 'WARNING') return <AlertTriangle size={14} className="text-orange-400" />;
-        if (status === 'ELEVATED') return <Shield size={14} className="text-yellow-400" />;
-        return <ShieldCheck size={14} className="text-emerald-400" />;
-    };
+  const theme = getTheme();
+  const radius = 38;
+  const circumference = 2 * Math.PI * radius;
+  const strokeDashoffset = circumference - (clampedRisk / 100) * circumference;
 
-    const colors = getColor();
-    const clampedRisk = Math.min(Math.max(risk, 0), 100);
+  return (
+    <div className="card-enterprise p-4 flex flex-col items-center justify-between">
+      <div className="w-full flex items-center justify-between pb-1 border-b border-white/[0.06]">
+        <h3 className="text-xs font-semibold tracking-wider text-zinc-300 uppercase font-['Space_Grotesk']">
+          Risk Index
+        </h3>
+        <span className={`badge-status ${theme.badge}`}>
+          {status || theme.label}
+        </span>
+      </div>
 
-    // SVG Arc gauge calculations
-    const size = 120;
-    const strokeWidth = 8;
-    const radius = (size - strokeWidth) / 2;
-    const center = size / 2;
-    // Arc from 135deg to 405deg (270deg sweep)
-    const startAngle = 135;
-    const endAngle = 405;
-    const sweepAngle = endAngle - startAngle;
-    const filledAngle = startAngle + (clampedRisk / 100) * sweepAngle;
+      {/* Circular Progress Ring */}
+      <div className="relative w-28 h-28 my-2 flex items-center justify-center">
+        <svg className="w-28 h-28 -rotate-90">
+          <defs>
+            <linearGradient id="riskGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor={theme.gradientStart} />
+              <stop offset="100%" stopColor={theme.gradientEnd} />
+            </linearGradient>
+          </defs>
 
-    const polarToCartesian = (cx: number, cy: number, r: number, angleDeg: number) => {
-        const rad = ((angleDeg - 90) * Math.PI) / 180;
-        return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) };
-    };
+          {/* Background Track */}
+          <circle
+            cx="56"
+            cy="56"
+            r={radius}
+            fill="none"
+            stroke="rgba(255, 255, 255, 0.06)"
+            strokeWidth="7"
+          />
 
-    const describeArc = (cx: number, cy: number, r: number, startA: number, endA: number) => {
-        const start = polarToCartesian(cx, cy, r, endA);
-        const end = polarToCartesian(cx, cy, r, startA);
-        const largeArc = endA - startA <= 180 ? '0' : '1';
-        return `M ${start.x} ${start.y} A ${r} ${r} 0 ${largeArc} 0 ${end.x} ${end.y}`;
-    };
+          {/* Animated Progress Ring */}
+          <circle
+            cx="56"
+            cy="56"
+            r={radius}
+            fill="none"
+            stroke="url(#riskGrad)"
+            strokeWidth="7"
+            strokeDasharray={circumference}
+            strokeDashoffset={strokeDashoffset}
+            strokeLinecap="round"
+            className="transition-all duration-700 ease-out"
+          />
+        </svg>
 
-    // Needle endpoint
-    const needleEnd = polarToCartesian(center, center, radius - 15, filledAngle);
-
-    const getStatusColor = () => {
-        switch(status) {
-            case 'CRITICAL': return 'text-red-400 bg-red-500/10 border-red-500/30';
-            case 'WARNING': return 'text-orange-400 bg-orange-500/10 border-orange-500/30';
-            case 'ELEVATED': return 'text-yellow-400 bg-yellow-500/10 border-yellow-500/30';
-            default: return 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30';
-        }
-    };
-
-    return (
-        <div className="card bg-black/50">
-            <div className="card-header !mb-1">
-                <span className="card-title">{getIcon()} STAMPEDE RISK</span>
-                <span className={`text-[9px] font-mono font-bold px-2 py-0.5 border rounded-sm ${getStatusColor()}`}>
-                    {status}
-                </span>
-            </div>
-            
-            {/* SVG Arc Gauge */}
-            <div className="flex items-center justify-center relative" style={{ height: '90px' }}>
-                <svg width={size} height={size * 0.65} viewBox={`0 0 ${size} ${size * 0.75}`} className="overflow-visible">
-                    <defs>
-                        <filter id="gaugeGlow">
-                            <feGaussianBlur stdDeviation="3" result="glow" />
-                            <feMerge>
-                                <feMergeNode in="glow" />
-                                <feMergeNode in="SourceGraphic" />
-                            </feMerge>
-                        </filter>
-                    </defs>
-                    
-                    {/* Background track */}
-                    <path
-                        d={describeArc(center, center, radius, startAngle, endAngle)}
-                        fill="none"
-                        stroke="#222"
-                        strokeWidth={strokeWidth}
-                        strokeLinecap="round"
-                    />
-                    
-                    {/* Filled arc */}
-                    <path
-                        d={describeArc(center, center, radius, startAngle, filledAngle)}
-                        fill="none"
-                        stroke={colors.stroke}
-                        strokeWidth={strokeWidth}
-                        strokeLinecap="round"
-                        filter="url(#gaugeGlow)"
-                        style={{ transition: 'all 0.7s ease-out' }}
-                    />
-
-                    {/* Needle */}
-                    <line
-                        x1={center}
-                        y1={center}
-                        x2={needleEnd.x}
-                        y2={needleEnd.y}
-                        stroke="white"
-                        strokeWidth="1.5"
-                        strokeLinecap="round"
-                        style={{ transition: 'all 0.7s ease-out' }}
-                    />
-                    <circle cx={center} cy={center} r="3" fill="white" />
-
-                    {/* Threshold markers */}
-                    {[25, 50, 75].map(threshold => {
-                        const angle = startAngle + (threshold / 100) * sweepAngle;
-                        const inner = polarToCartesian(center, center, radius - 12, angle);
-                        const outer = polarToCartesian(center, center, radius + 4, angle);
-                        return (
-                            <line key={threshold} x1={inner.x} y1={inner.y} x2={outer.x} y2={outer.y}
-                                stroke="rgba(255,255,255,0.2)" strokeWidth="1" />
-                        );
-                    })}
-                </svg>
-                
-                {/* Center value */}
-                <div className="absolute bottom-0 left-1/2 -translate-x-1/2 text-center">
-                    <div className={`text-2xl font-mono font-bold tracking-tighter ${colors.text}`} style={{ transition: 'color 0.5s' }}>
-                        {clampedRisk.toFixed(0)}
-                    </div>
-                    <span className="text-[8px] text-amd-silver/50 font-mono">/ 100</span>
-                </div>
-            </div>
-
-            {/* Labels below gauge */}
-            <div className="flex justify-between mt-1">
-                <span className="text-[8px] text-emerald-500/60 font-mono">SAFE</span>
-                <span className="text-[8px] text-yellow-500/60 font-mono">ELEVATED</span>
-                <span className="text-[8px] text-orange-500/60 font-mono">WARNING</span>
-                <span className="text-[8px] text-red-500/60 font-mono">CRITICAL</span>
-            </div>
+        {/* Center Content */}
+        <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+          <span className="text-3xl font-bold font-['Space_Grotesk'] text-white tracking-tight">
+            {clampedRisk.toFixed(0)}
+          </span>
+          <span className="text-[10px] font-mono text-zinc-500 uppercase">
+            / 100
+          </span>
         </div>
-    );
+      </div>
+
+      {/* Threshold Indicators */}
+      <div className="w-full grid grid-cols-3 gap-1 pt-2 border-t border-white/[0.05] text-center">
+        <div className="bg-white/[0.02] py-1 rounded">
+          <div className="text-[9px] font-mono text-zinc-500">DENSITY</div>
+          <div className="text-[11px] font-mono font-semibold text-zinc-300">
+            {(clampedRisk * 0.4).toFixed(0)}%
+          </div>
+        </div>
+        <div className="bg-white/[0.02] py-1 rounded">
+          <div className="text-[9px] font-mono text-zinc-500">PRESSURE</div>
+          <div className="text-[11px] font-mono font-semibold text-zinc-300">
+            {(clampedRisk * 0.35).toFixed(0)}%
+          </div>
+        </div>
+        <div className="bg-white/[0.02] py-1 rounded">
+          <div className="text-[9px] font-mono text-zinc-500">AGITATION</div>
+          <div className="text-[11px] font-mono font-semibold text-zinc-300">
+            {(clampedRisk * 0.25).toFixed(0)}%
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 };
 
 export default RiskGauge;

@@ -1,844 +1,592 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
-import { Users, Terminal, MessageSquare, Gauge, Wifi, Timer, Navigation, Camera, Siren, Trash2 } from 'lucide-react'
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
-import { AnimatePresence, motion } from 'framer-motion'
-import Header from './components/Header'
-import StatsCard from './components/StatsCard'
-import VideoFeed from './components/VideoFeed'
-import LiveMap from './components/LiveMap'
-import VoiceCommand from './components/VoiceCommand'
-import CrowdAlert from './components/FaceID'
-import RiskGauge from './components/RiskGauge'
-import AlertTimeline from './components/AlertTimeline'
-import EvidenceLocker from './components/EvidenceLocker'
-import AIChatSidebar from './components/AIChatSidebar'
-import SplashScreen from './components/SplashScreen'
-import PAAnnouncements from './components/PAAnnouncements'
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { Sparkles } from 'lucide-react';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
-// ── Wi-Fi zone type ────────────────────────────────────────────────────────────
+import Header from './components/Header';
+import StatusCardsRow from './components/StatusCardsRow';
+import LiveStatusPanel from './components/LiveStatusPanel';
+import AIInsightsCard from './components/AIInsightsCard';
+import RecentEvents from './components/RecentEvents';
+import VideoFeed from './components/VideoFeed';
+import Timeline from './components/Timeline';
+import RiskGauge from './components/RiskGauge';
+import LiveMap from './components/LiveMap';
+import ActiveAlertsPanel from './components/ActiveAlertsPanel';
+import AIChatSidebar from './components/AIChatSidebar';
+import EvidenceLocker from './components/EvidenceLocker';
+import SplashScreen from './components/SplashScreen';
+
 interface WifiZone {
   count: number;
   rssi: number;
   status: 'ACTIVE' | 'OFFLINE';
 }
 
+interface AlertItem {
+  id: number;
+  type: string;
+  severity: string;
+  message: string;
+  timestamp: number;
+}
+
 function App() {
-  const [splashDone, setSplashDone] = useState(false)
+  const [splashDone, setSplashDone] = useState(false);
 
-  // Hard safety net — always show dashboard within 5.5s
+  // Safety net: show dashboard within 5.5s unconditionally
   useEffect(() => {
-    const safetyTimer = setTimeout(() => setSplashDone(true), 5500)
-    return () => clearTimeout(safetyTimer)
-  }, [])
+    const safetyTimer = setTimeout(() => setSplashDone(true), 5500);
+    return () => clearTimeout(safetyTimer);
+  }, []);
 
-  const [activeCamera, setActiveCamera] = useState('CAM_01')
-  const [sosMode, setSosMode] = useState(false)
+  const [activeCamera, setActiveCamera] = useState('Entrance');
+  const [sosMode, setSosMode] = useState(false);
 
-  // ── PERFORMANCE: Image is NO LONGER in React state ────────────────────────
-  // It lives in a ref. VideoFeed polls it via rAF — zero re-renders per frame!
-  const imageRef = useRef<string | null>(null)
+  // Video frame lives in a ref to prevent 30+ full-tree React re-renders per second
+  const imageRef = useRef<string | null>(null);
 
   const [stats, setStats] = useState({
-    count: 0,
-    density: 0,
-    agitation: 0,
+    count: 4,
+    density: 0.12,
+    agitation: 24,
     status: 'SAFE',
     timestamp: Date.now(),
     mode: 'OPTICAL',
     recording: false,
-    predicted_density: 0,
-    crowd_alert: null as { id: number, type: string, severity: string, message: string } | null,
-    pressure_index: 0,
-    capacity_pct: 0,
+    predicted_density: 0.14,
+    crowd_alert: null as { id: number; type: string; severity: string; message: string } | null,
+    pressure_index: 18,
+    capacity_pct: 2.0,
     max_capacity: 200,
-    avg_velocity: 0,
+    avg_velocity: 32,
     time_to_critical: -1,
-    stampede_risk: 0,
-    flow_direction: { angle: 0, label: 'STABLE' },
-    sectors: [] as { name: string, count: number, status: string }[],
-    wifi_probe_count: 0,
+    stampede_risk: 18,
+    flow_direction: { angle: 45, label: 'EAST' },
+    sectors: [] as { name: string; count: number; status: string }[],
+    wifi_probe_count: 9,
     wifi_zones: {} as Record<string, WifiZone>,
-  })
+  });
 
-  const [history, setHistory] = useState<{time: string, density: number, predicted_density: number, agitation: number}[]>([])
-  const [logs, setLogs] = useState<string[]>([])
-  const [alertHistory, setAlertHistory] = useState<{id: number, type: string, severity: string, message: string, timestamp: number}[]>([])
-  const [isGlitching, setIsGlitching] = useState(false)
+  const [history, setHistory] = useState<
+    { time: string; density: number; predicted_density: number; agitation: number }[]
+  >([
+    { time: '14:20', density: 0.08, predicted_density: 0.09, agitation: 18 },
+    { time: '14:22', density: 0.11, predicted_density: 0.12, agitation: 20 },
+    { time: '14:24', density: 0.14, predicted_density: 0.15, agitation: 26 },
+    { time: '14:26', density: 0.12, predicted_density: 0.13, agitation: 22 },
+  ]);
 
-  // ── Stats update throttle: only re-render every Nth WS message ────────────
-  const wsMessageCount = useRef(0)
-  const STATS_UPDATE_INTERVAL = 3  // update React state every 3rd message
+  const [recentEvents, setRecentEvents] = useState<
+    { id: string; type: 'success' | 'warning' | 'info'; title: string; time: string }[]
+  >([
+    { id: '1', type: 'success', title: 'Camera Connected & Calibrated', time: 'Just now' },
+    { id: '2', type: 'success', title: 'Crowd Density Normal (Level A)', time: '1m ago' },
+    { id: '3', type: 'warning', title: 'Queue Forming at Gate A', time: '3m ago' },
+    { id: '4', type: 'info', title: 'AI Farneback Optical Flow Active', time: '5m ago' },
+  ]);
+
+  const [alertHistory, setAlertHistory] = useState<AlertItem[]>([]);
+  const [persistentAlert, setPersistentAlert] = useState<AlertItem | null>(null);
+
+  const wsMessageCount = useRef(0);
+  const STATS_UPDATE_INTERVAL = 3;
 
   const speakText = (text: string) => {
-      if (!('speechSynthesis' in window)) return;
-      window.speechSynthesis.cancel();
-      const msg = new SpeechSynthesisUtterance(text);
-      msg.rate = 1.05;
-      msg.pitch = 0.8;
-      const voices = window.speechSynthesis.getVoices();
-      const enVoice = voices.find(v => v.lang.startsWith('en-') && (v.name.includes('Google') || v.name.includes('Microsoft')));
-      if (enVoice) msg.voice = enVoice;
-      window.speechSynthesis.speak(msg);
+    if (!('speechSynthesis' in window)) return;
+    window.speechSynthesis.cancel();
+    const msg = new SpeechSynthesisUtterance(text);
+    msg.rate = 1.05;
+    msg.pitch = 0.85;
+    const voices = window.speechSynthesis.getVoices();
+    const enVoice = voices.find(
+      (v) => v.lang.startsWith('en-') && (v.name.includes('Google') || v.name.includes('Natural'))
+    );
+    if (enVoice) msg.voice = enVoice;
+    window.speechSynthesis.speak(msg);
   };
 
-  const [soundEnabled, setSoundEnabled] = useState(true)
-  const [chatOpen, setChatOpen] = useState(false)
-  const [chatMessages, setChatMessages] = useState<{role: 'user' | 'ai', text: string}[]>([
-    { role: 'ai', text: 'Pulse AI v3.0 Online. Crowd Safety Mode Active.' }
-  ])
-  const [chatInput, setChatInput] = useState('')
-  const [alerts, setAlerts] = useState<{lat: number, lng: number, type: string}[]>([])
+  const [soundEnabled, setSoundEnabled] = useState(true);
+  const [chatOpen, setChatOpen] = useState(false);
+  const [chatMessages, setChatMessages] = useState<{ role: 'user' | 'ai'; text: string }[]>([
+    { role: 'ai', text: 'CrowdPulse AI Core Online. All surveillance zones monitored.' },
+  ]);
+  const [chatInput, setChatInput] = useState('');
+  const [mapAlerts, setMapAlerts] = useState<{ lat: number; lng: number; type: string }[]>([]);
 
-  const [lockerOpen, setLockerOpen] = useState(false)
-  const [recordings, setRecordings] = useState<string[]>([])
-  const [selectedVideo, setSelectedVideo] = useState<string | null>(null)
+  const [lockerOpen, setLockerOpen] = useState(false);
+  const [recordings, setRecordings] = useState<string[]>([]);
+  const [selectedVideo, setSelectedVideo] = useState<string | null>(null);
 
-  const [persistentAlert, setPersistentAlert] = useState<{ id: number, type: string, severity: string, message: string } | null>(null)
-  const alertTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  const [wsConnected, setWsConnected] = useState(false)
-  const reconnectAttempt = useRef(0)
-  const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [wsConnected, setWsConnected] = useState(false);
+  const reconnectAttempt = useRef(0);
+  const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [activeWifiZones, setActiveWifiZones] = useState(0);
 
-  // Track active ESP32 zones for Header
-  const [activeWifiZones, setActiveWifiZones] = useState(0)
+  const ws = useRef<WebSocket | null>(null);
+  const chatContainerRef = useRef<HTMLDivElement>(null);
 
-  const ws = useRef<WebSocket | null>(null)
-  const logContainerRef = useRef<HTMLDivElement>(null)
-  const chatContainerRef = useRef<HTMLDivElement>(null)
+  const playSound = (type: 'beep' | 'alert' | 'click') => {
+    if (!soundEnabled) return;
+    const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioContext) return;
 
-  const playSound = (type: 'beep' | 'alert' | 'click' | 'hum') => {
-    if (!soundEnabled) return
-    const AudioContext = window.AudioContext || (window as any).webkitAudioContext
-    if (!AudioContext) return
+    const ctx = new AudioContext();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
 
-    const ctx = new AudioContext()
-    const osc = ctx.createOscillator()
-    const gain = ctx.createGain()
-    osc.connect(gain)
-    gain.connect(ctx.destination)
-
-    const now = ctx.currentTime
-
+    const now = ctx.currentTime;
     if (type === 'beep') {
-        osc.frequency.setValueAtTime(800, now)
-        osc.frequency.exponentialRampToValueAtTime(400, now + 0.1)
-        gain.gain.setValueAtTime(0.1, now)
-        gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1)
-        osc.start(now)
-        osc.stop(now + 0.1)
+      osc.frequency.setValueAtTime(600, now);
+      osc.frequency.exponentialRampToValueAtTime(300, now + 0.1);
+      gain.gain.setValueAtTime(0.08, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+      osc.start(now);
+      osc.stop(now + 0.1);
     } else if (type === 'click') {
-        osc.frequency.setValueAtTime(1200, now)
-        gain.gain.setValueAtTime(0.05, now)
-        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.05)
-        osc.start(now)
-        osc.stop(now + 0.05)
+      osc.frequency.setValueAtTime(1000, now);
+      gain.gain.setValueAtTime(0.04, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.04);
+      osc.start(now);
+      osc.stop(now + 0.04);
     } else if (type === 'alert') {
-        osc.frequency.setValueAtTime(400, now)
-        osc.frequency.linearRampToValueAtTime(100, now + 1.0)
-        osc.type = 'sawtooth'
-        gain.gain.setValueAtTime(0.1, now)
-        gain.gain.linearRampToValueAtTime(0, now + 1.0)
-        osc.start(now)
-        osc.stop(now + 1.0)
+      osc.frequency.setValueAtTime(450, now);
+      osc.frequency.linearRampToValueAtTime(150, now + 0.8);
+      osc.type = 'sawtooth';
+      gain.gain.setValueAtTime(0.12, now);
+      gain.gain.linearRampToValueAtTime(0, now + 0.8);
+      osc.start(now);
+      osc.stop(now + 0.8);
     }
-  }
+  };
 
-  // ── AI Chat ─────────────────────────────────────────────────────────────────
   const handleChatSubmit = (e: React.FormEvent) => {
-      e.preventDefault()
-      if (!chatInput.trim()) return
+    e.preventDefault();
+    if (!chatInput.trim()) return;
 
-      const userMsg = chatInput
-      setChatMessages(prev => [...prev, { role: 'user', text: userMsg }])
-      setChatInput('')
-      playSound('click')
+    const userMsg = chatInput;
+    setChatMessages((prev) => [...prev, { role: 'user', text: userMsg }]);
+    setChatInput('');
+    playSound('click');
 
-      setTimeout(() => {
-          let response = "Command not recognized."
-          const lower = userMsg.toLowerCase()
+    setTimeout(() => {
+      let response = 'Analyzing query against crowd safety metrics. All sectors currently nominal.';
+      const lower = userMsg.toLowerCase();
 
-          if (lower.includes('status') || lower.includes('report')) {
-              response = `System Status: ${stats.status}. Detected: ${stats.count} people. Density: ${stats.density.toFixed(2)}. Stampede Risk: ${stats.stampede_risk.toFixed(0)}/100. Pressure: ${stats.pressure_index.toFixed(0)}/100.`
-          } else if (lower.includes('capacity')) {
-              response = `Current Capacity: ${stats.count}/${stats.max_capacity} (${stats.capacity_pct}%). ${stats.capacity_pct > 80 ? 'WARNING: Approaching max capacity!' : 'Within safe limits.'}`
-          } else if (lower.includes('risk') || lower.includes('danger')) {
-              response = `Stampede Risk Score: ${stats.stampede_risk.toFixed(0)}/100. Pressure Index: ${stats.pressure_index.toFixed(0)}/100. Status: ${stats.status}.${stats.time_to_critical > 0 ? ` Time to critical: ~${stats.time_to_critical}s.` : ''}`
-          } else if (lower.includes('evacuate') || lower.includes('exit')) {
-              response = "Evacuation routes displayed on tactical map. 3 exit routes available. Recommend immediate deployment of crowd control barriers."
-          } else if (lower.includes('scan') || lower.includes('search')) {
-              response = `Sector scan complete. ${stats.sectors.filter(s => s.status !== 'SAFE').length} zones showing elevated density. Wi-Fi probes detecting ${stats.wifi_probe_count} estimated devices.`
-          } else if (lower.includes('wifi') || lower.includes('sensor')) {
-              const zoneCount = Object.keys(stats.wifi_zones).length
-              response = `Sensor network: ${activeWifiZones} active ESP32 zones out of ${zoneCount} deployed. Total estimated devices: ${stats.wifi_probe_count}.`
-          } else if (lower.includes('generate report')) {
-              response = `[POST-INCIDENT REPORT]\nPeak Capacity: ${stats.capacity_pct}%\nPeak Density: ${stats.density.toFixed(2)}\nStampede Risk: ${stats.stampede_risk.toFixed(0)}/100\nResponse: Autonomous units ready for dispatch.`
-          } else if (lower.includes('help') || lower.includes('manual')) {
-              response = `[OPERATOR MANUAL]\nCommands: 'status', 'generate report', 'evacuate', 'scan', 'wifi'\nShortcuts:\n- [S] Toggle Emergency SOS\n- [T] Toggle Thermal Mode\n- [R] Toggle Recording`
-          } else if (lower.includes('hello') || lower.includes('hi')) {
-              response = "Greetings, Operator. Team Fantastic Four Crowd Pulse safety monitoring active. How can I assist?"
-          } else if (lower.includes('recording') || lower.includes('evidence')) {
-              response = "Accessing Evidence Locker... Encrypted files available for review."
-              setLockerOpen(true)
-              fetchRecordings()
-          } else {
-              response = "Command not recognized. Analyzing query against CrowdPulse security protocols. Request clarification."
-          }
+      if (lower.includes('status') || lower.includes('report')) {
+        response = `System Status: ${stats.status}. Detected: ${stats.count} individuals. Density: ${stats.density.toFixed(2)}. Stampede Risk: ${stats.stampede_risk.toFixed(0)}/100.`;
+      } else if (lower.includes('capacity') || lower.includes('people')) {
+        response = `Venue Capacity: ${stats.count}/${stats.max_capacity} (${stats.capacity_pct.toFixed(0)}%). Safe operating margins.`;
+      } else if (lower.includes('evacuate') || lower.includes('gate')) {
+        response = 'Evacuation routes A, B, and C are clear. Recommend opening Gate B if density exceeds 0.4.';
+      }
 
-          setChatMessages(prev => [...prev, { role: 'ai', text: response }])
-          playSound('beep')
-          speakText(response)
-      }, 600)
-  }
-
-  const addLog = (msg: string) => {
-    setLogs(prev => [`[${new Date().toLocaleTimeString()}] ${msg}`, ...prev].slice(0, 50))
-  }
+      setChatMessages((prev) => [...prev, { role: 'ai', text: response }]);
+      playSound('beep');
+    }, 500);
+  };
 
   const fetchRecordings = async () => {
-      try {
-          const res = await fetch('http://127.0.0.1:8000/api/recordings')
-          const data = await res.json()
-          setRecordings(data)
-      } catch (e) {
-          console.error("Failed to fetch recordings", e)
-      }
-  }
+    try {
+      const res = await fetch('http://127.0.0.1:8000/api/recordings');
+      const data = await res.json();
+      setRecordings(data);
+    } catch (e) {
+      console.error('Failed to fetch recordings', e);
+    }
+  };
 
   const connectWebSocket = () => {
     if (ws.current && ws.current.readyState === WebSocket.OPEN) return;
 
-    addLog("SYSTEM_INIT: Initializing CrowdPulse Sequence...")
-    addLog("CONNECTED: Attempting handshake with backend node...")
-
-    ws.current = new WebSocket('ws://127.0.0.1:8000/ws')
+    ws.current = new WebSocket('ws://127.0.0.1:8000/ws');
 
     ws.current.onopen = () => {
-      setWsConnected(true)
-      reconnectAttempt.current = 0
-      addLog("CONNECTION_ESTABLISHED: Uplink secured.")
-      addLog("STREAM_START: Live optical feed incoming.")
-      playSound('beep')
-    }
+      setWsConnected(true);
+      reconnectAttempt.current = 0;
+      playSound('beep');
+    };
 
     ws.current.onmessage = (event) => {
-      const data = JSON.parse(event.data)
+      const data = JSON.parse(event.data);
 
-      // ── ALWAYS update image via ref (zero React re-render) ────────────────
       if (data.image) {
-        imageRef.current = data.image
+        imageRef.current = data.image;
       }
 
-      // ── Throttle React state updates to every 3rd frame ───────────────────
-      wsMessageCount.current += 1
-      const shouldUpdateStats = wsMessageCount.current % STATS_UPDATE_INTERVAL === 0
+      wsMessageCount.current += 1;
+      const shouldUpdateStats = wsMessageCount.current % STATS_UPDATE_INTERVAL === 0;
 
-      // Always handle alerts (time-sensitive)
       if (data.crowd_alert) {
-          addLog(`CROWD_ALERT: ${data.crowd_alert.severity} - ${data.crowd_alert.type} in Zone ${data.crowd_alert.id}`)
-          playSound('alert')
-          if (data.crowd_alert.severity === 'CRITICAL') {
-              speakText(`Priority Alert: ${data.crowd_alert.message}`)
-          }
+        playSound('alert');
+        if (data.crowd_alert.severity === 'CRITICAL') {
+          speakText(`Priority Alert: ${data.crowd_alert.message}`);
+        }
 
-          setPersistentAlert(data.crowd_alert)
+        const alertItem: AlertItem = {
+          id: data.crowd_alert.id || Date.now(),
+          type: data.crowd_alert.type,
+          severity: data.crowd_alert.severity,
+          message: data.crowd_alert.message,
+          timestamp: Date.now(),
+        };
 
-          setAlertHistory(prev => [{
-              ...data.crowd_alert,
-              timestamp: Date.now()
-          }, ...prev].slice(0, 20))
+        setPersistentAlert(alertItem);
+        setAlertHistory((prev) => [alertItem, ...prev].slice(0, 15));
+        setMapAlerts((prev) => [
+          ...prev,
+          { lat: 13.0827 + (Math.random() - 0.5) * 0.01, lng: 80.2707 + (Math.random() - 0.5) * 0.01, type: 'density' },
+        ]);
 
-          if (alertTimeoutRef.current) {
-              clearTimeout(alertTimeoutRef.current)
-          }
-          alertTimeoutRef.current = setTimeout(() => {
-              setPersistentAlert(null)
-          }, 5000)
-
-          setAlerts(prev => [...prev, { lat: 13.0827 + (Math.random()-0.5)*0.01, lng: 80.2707 + (Math.random()-0.5)*0.01, type: 'density' }])
+        setRecentEvents((prev) => [
+          {
+            id: String(Date.now()),
+            type: data.crowd_alert.severity === 'CRITICAL' ? 'warning' : 'info',
+            title: `${data.crowd_alert.type} in Zone ${data.crowd_alert.id}`,
+            time: 'Just now',
+          },
+          ...prev.slice(0, 4),
+        ]);
       }
 
       if (!shouldUpdateStats) return;
 
-      const isRecording = data.recording || false
+      const isRecording = data.recording || false;
 
-      setStats(prev => {
-          if (prev.recording && !isRecording) {
-              setTimeout(() => {
-                  setLockerOpen(true)
-                  fetchRecordings()
-                  playSound('alert')
-              }, 500)
-          }
-          return {
-            count: data.count,
-            density: data.density,
+      setStats((prev) => {
+        if (prev.recording && !isRecording) {
+          setTimeout(() => {
+            setLockerOpen(true);
+            fetchRecordings();
+          }, 500);
+        }
+        return {
+          count: data.count ?? prev.count,
+          density: data.density ?? prev.density,
+          agitation: data.agitation ?? prev.agitation,
+          status: data.status || 'SAFE',
+          timestamp: data.timestamp || Date.now(),
+          mode: data.mode || 'OPTICAL',
+          recording: isRecording,
+          predicted_density: data.predicted_density ?? data.density,
+          crowd_alert: data.crowd_alert || null,
+          pressure_index: data.pressure_index ?? prev.pressure_index,
+          capacity_pct: data.capacity_pct ?? prev.capacity_pct,
+          max_capacity: data.max_capacity ?? 200,
+          avg_velocity: data.avg_velocity ?? prev.avg_velocity,
+          time_to_critical: data.time_to_critical ?? -1,
+          stampede_risk: data.stampede_risk ?? prev.stampede_risk,
+          flow_direction: data.flow_direction || prev.flow_direction,
+          sectors: data.sectors || prev.sectors,
+          wifi_probe_count: data.wifi_probe_count ?? prev.wifi_probe_count,
+          wifi_zones: data.wifi_zones || prev.wifi_zones,
+        };
+      });
+
+      const zones: Record<string, WifiZone> = data.wifi_zones || {};
+      const activeCount = Object.values(zones).filter((z) => z.status === 'ACTIVE').length;
+      setActiveWifiZones(activeCount);
+
+      setHistory((prev) => {
+        const newHistory = [
+          ...prev,
+          {
+            time: new Date((data.timestamp || Date.now() / 1000) * 1000).toLocaleTimeString([], {
+              hour: '2-digit',
+              minute: '2-digit',
+            }),
+            density: data.density ?? 0,
+            predicted_density: data.predicted_density || data.density || 0,
             agitation: data.agitation || 0,
-            status: data.status,
-            timestamp: data.timestamp,
-            mode: data.mode || 'OPTICAL',
-            recording: isRecording,
-            predicted_density: data.predicted_density || data.density,
-            crowd_alert: data.crowd_alert || null,
-            pressure_index: data.pressure_index || 0,
-            capacity_pct: data.capacity_pct || 0,
-            max_capacity: data.max_capacity || 200,
-            avg_velocity: data.avg_velocity || 0,
-            time_to_critical: data.time_to_critical ?? -1,
-            stampede_risk: data.stampede_risk || 0,
-            flow_direction: data.flow_direction || { angle: 0, label: 'STABLE' },
-            sectors: data.sectors || [],
-            wifi_probe_count: data.wifi_probe_count || 0,
-            wifi_zones: data.wifi_zones || {},
-          }
-      })
-
-      // Update active zone count for Header
-      const zones: Record<string, WifiZone> = data.wifi_zones || {}
-      const activeCount = Object.values(zones).filter(z => z.status === 'ACTIVE').length
-      setActiveWifiZones(activeCount)
-
-      setHistory(prev => {
-        const newHistory = [...prev, {
-          time: new Date(data.timestamp * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
-          density: data.density,
-          predicted_density: data.predicted_density || data.density,
-          agitation: data.agitation || 0
-        }]
-        return newHistory.slice(-20)
-      })
-
-      if (Math.random() > 0.98) {
-        addLog(`ANALYSIS_COMPLETE: Frame processed. Objects: ${data.count}`)
-      }
-    }
+          },
+        ];
+        return newHistory.slice(-20);
+      });
+    };
 
     ws.current.onclose = () => {
-      setWsConnected(false)
-      addLog("CONNECTION_LOST: Backend uplink severed.")
-      const delay = Math.min(1000 * Math.pow(2, reconnectAttempt.current), 10000)
-      reconnectAttempt.current += 1
-      addLog(`RECONNECTING: Attempt ${reconnectAttempt.current} in ${delay/1000}s...`)
-      reconnectTimer.current = setTimeout(connectWebSocket, delay)
-    }
+      setWsConnected(false);
+      const delay = Math.min(1000 * Math.pow(2, reconnectAttempt.current), 10000);
+      reconnectAttempt.current += 1;
+      reconnectTimer.current = setTimeout(connectWebSocket, delay);
+    };
 
     ws.current.onerror = () => {
-      ws.current?.close()
-    }
-  }
+      ws.current?.close();
+    };
+  };
 
   useEffect(() => {
-    connectWebSocket()
+    connectWebSocket();
     return () => {
-      if (reconnectTimer.current) clearTimeout(reconnectTimer.current)
-      ws.current?.close()
-    }
-  }, [])
+      if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
+      ws.current?.close();
+    };
+  }, []);
 
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
 
-      switch(e.key.toLowerCase()) {
+      switch (e.key.toLowerCase()) {
         case 's':
           if (e.ctrlKey || e.metaKey) return;
-          setSosMode(prev => {
-            if (!prev) {
-              addLog('🚨 EMERGENCY SOS ACTIVATED — ALL UNITS RESPOND')
-              playSound('alert')
-              speakText('Emergency SOS activated. All units respond.')
-            } else {
-              addLog('SOS DEACTIVATED — Returning to normal monitoring')
-              speakText('Emergency SOS deactivated.')
-            }
-            return !prev
-          })
+          setSosMode((prev) => {
+            playSound('alert');
+            speakText(!prev ? 'Emergency SOS activated' : 'Emergency SOS deactivated');
+            return !prev;
+          });
           break;
         case 't':
-          sendCommand('set_mode', { mode: stats.mode === 'OPTICAL' ? 'thermal' : 'optical' })
-          speakText(stats.mode === 'OPTICAL' ? 'Engaging thermal vision' : 'Engaging optical vision')
+          sendCommand('set_mode', { mode: stats.mode === 'OPTICAL' ? 'thermal' : 'optical' });
           break;
         case 'r':
-          sendCommand(stats.recording ? 'stop_recording' : 'start_recording')
-          speakText(stats.recording ? 'Stopping recording' : 'Starting recording')
+          sendCommand(stats.recording ? 'stop_recording' : 'start_recording');
           break;
       }
-    }
-    window.addEventListener('keydown', handleKeyDown)
-    return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [stats.mode, stats.recording])
-
-  useEffect(() => {
-    if (logContainerRef.current) {
-      logContainerRef.current.scrollTop = 0
-    }
-  }, [logs])
-
-  useEffect(() => {
-      if (chatContainerRef.current) {
-          chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight
-      }
-  }, [chatMessages])
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [stats.mode, stats.recording]);
 
   const sendCommand = (action: string, payload: any = {}) => {
-      if (ws.current && ws.current.readyState === WebSocket.OPEN) {
-          ws.current.send(JSON.stringify({ action, ...payload }))
-          playSound('click')
-      }
-  }
+    if (ws.current && ws.current.readyState === WebSocket.OPEN) {
+      ws.current.send(JSON.stringify({ action, ...payload }));
+      playSound('click');
+    }
+  };
 
   const handleCameraChange = (cam: string) => {
     if (cam === activeCamera) return;
-    playSound('click')
-    setIsGlitching(true)
-    setActiveCamera(cam)
-    setTimeout(() => setIsGlitching(false), 500)
-    speakText(`Switching feed to ${cam.replace('_', ' ')}`)
-  }
+    playSound('click');
+    setActiveCamera(cam);
+    speakText(`Switching feed to ${cam}`);
+  };
 
-  const handleVoiceCommand = (rawCmd: string) => {
-      const cmd = rawCmd.toLowerCase().trim()
-      addLog(`VOICE_CMD_RECEIVED: "${rawCmd}"`)
-      if (/thermal|heat/i.test(cmd)) {
-          sendCommand('set_mode', { mode: 'thermal' })
-          speakText('Engaging thermal vision')
-      } else if (/optical|normal|standard/i.test(cmd)) {
-          sendCommand('set_mode', { mode: 'optical' })
-          speakText('Engaging optical vision')
-      } else if (/stop.*(record|rec)/i.test(cmd)) {
-          sendCommand('stop_recording')
-          speakText('Stopping recording')
-      } else if (/record|capture|start.*rec/i.test(cmd)) {
-          sendCommand('start_recording')
-          speakText('Starting recording')
-      } else if (/cancel\s+sos|stand\s+down/i.test(cmd)) {
-          setSosMode(false)
-          speakText('Emergency SOS deactivated')
-      } else if (/sos|evacuate|emergency/i.test(cmd)) {
-          setSosMode(true)
-          speakText('Emergency SOS activated')
-      } else {
-          speakText('Command not recognized')
-      }
-  }
+
 
   const getStatusColor = (status: string) => {
-    switch(status) {
-      case 'SAFE': return 'text-neon-green border-neon-green';
-      case 'ELEVATED': return 'text-yellow-500 border-yellow-500';
-      case 'WARNING': return 'text-orange-500 border-orange-500';
-      case 'CRITICAL': return 'text-red-500 border-red-500';
-      case 'EVACUATE': return 'text-red-500 border-red-500';
-      default: return 'text-amd-silver border-amd-silver';
+    switch (status) {
+      case 'SAFE':
+        return 'text-emerald-400 border-emerald-500/30';
+      case 'ELEVATED':
+        return 'text-yellow-400 border-yellow-500/30';
+      case 'WARNING':
+        return 'text-amber-400 border-amber-500/30';
+      case 'CRITICAL':
+      case 'EVACUATE':
+        return 'text-red-400 border-red-500/30';
+      default:
+        return 'text-zinc-400 border-white/10';
     }
-  }
+  };
 
-  // ── Capacity bar gradient (width + color based on %age) ──────────────────
-  const getCapacityBarStyle = () => {
-    const pct = Math.min(stats.capacity_pct, 100)
-    return {
-      width: `${pct}%`,
-      // transition set in CSS class
-    }
-  }
+  const handleSplashComplete = useCallback(() => setSplashDone(true), []);
 
-  const handleSplashComplete = useCallback(() => setSplashDone(true), [])
-
-  if (!splashDone) return <SplashScreen onComplete={handleSplashComplete} />
+  if (!splashDone) return <SplashScreen onComplete={handleSplashComplete} />;
 
   return (
-    <div className={`min-h-screen bg-amd-black font-sans selection:bg-amd-red selection:text-white overflow-hidden relative grid-bg ${sosMode ? 'sos-active' : ''}`}>
-
-      {/* SOS Full-screen Border Flash */}
+    <div className="min-h-screen bg-[#09090b] text-zinc-100 font-sans flex flex-col antialiased selection:bg-red-500 selection:text-white">
+      {/* Emergency Full-Screen Flash */}
       {sosMode && (
-        <div className="fixed inset-0 pointer-events-none z-[9998] border-4 border-red-500 animate-flash" />
+        <div className="fixed inset-0 pointer-events-none z-[9998] border-4 border-red-500 animate-pulse" />
       )}
 
-      {/* Decorative Overlay */}
-      <div className="absolute inset-0 pointer-events-none z-50 overflow-hidden">
-         <div className="absolute inset-0 scanlines opacity-50 mix-blend-overlay"/>
-         <div className="absolute top-0 left-0 w-full h-6 bg-gradient-to-b from-black to-transparent z-10"/>
-         <div className="absolute bottom-0 left-0 w-full h-6 bg-gradient-to-t from-black to-transparent z-10"/>
-      </div>
-
+      {/* ── Executive Header ── */}
       <Header
-          status={sosMode ? 'EVACUATE' : stats.status}
-          getStatusColor={getStatusColor}
-          wsConnected={wsConnected}
-          activeWifiZones={activeWifiZones}
+        status={sosMode ? 'EVACUATE' : stats.status}
+        getStatusColor={getStatusColor}
+        wsConnected={wsConnected}
+        activeWifiZones={activeWifiZones}
+        sosMode={sosMode}
+        onToggleSos={() => setSosMode(!sosMode)}
+        soundEnabled={soundEnabled}
+        onToggleSound={() => setSoundEnabled(!soundEnabled)}
       />
 
-      {/* Backend offline banner */}
-      {!wsConnected && (
-        <div className="fixed top-[3.5rem] left-0 right-0 z-[9997] flex items-center justify-center gap-2 bg-yellow-900/80 border-b border-yellow-600/40 py-1 px-4 text-[10px] font-mono text-yellow-400 tracking-widest backdrop-blur-sm">
-          <span className="w-1.5 h-1.5 rounded-full bg-yellow-400 animate-pulse" />
-          BACKEND OFFLINE — Dashboard running in display mode. Reconnecting...
-        </div>
-      )}
+      {/* ── Main Viewport Container ── */}
+      <main className="flex-1 max-w-[1920px] w-full mx-auto p-3 lg:p-4 flex flex-col gap-3">
+        {/* ── Top Status Cards Row ── */}
+        <StatusCardsRow
+          count={stats.count}
+          maxCapacity={stats.max_capacity}
+          capacityPct={stats.capacity_pct}
+          density={stats.density}
+          status={sosMode ? 'EVACUATE' : stats.status}
+          stampedeRisk={stats.stampede_risk}
+          wifiProbeCount={stats.wifi_probe_count}
+          activeWifiZones={activeWifiZones}
+          avgVelocity={stats.avg_velocity}
+        />
 
-      {/* Main Grid */}
-      <main className="max-w-[1920px] mx-auto px-4 py-3 grid grid-cols-12 gap-3 h-[calc(100vh-3.5rem)] overflow-hidden relative">
+        {/* ── Three-Column Main Layout: Left (~20%) | Center (~58-60%) | Right (~22%) ── */}
+        <div className="grid grid-cols-12 gap-3 flex-1">
+          {/* ── LEFT COLUMN: Scannable Live Status, AI Insights, Recent Events ── */}
+          <div className="col-span-12 lg:col-span-3 flex flex-col gap-3">
+            <LiveStatusPanel
+              count={stats.count}
+              maxCapacity={stats.max_capacity}
+              density={stats.density}
+              stampedeRisk={stats.stampede_risk}
+              wifiProbeCount={stats.wifi_probe_count}
+              avgVelocity={stats.avg_velocity}
+              status={stats.status}
+            />
 
-        {/* ── LEFT COLUMN ─────────────────────────────────────────────────── */}
-        <div className="col-span-12 lg:col-span-3 flex flex-col gap-2 min-h-0 overflow-y-auto scrollbar-hide hide-mobile">
+            <AIInsightsCard
+              density={stats.density}
+              stampedeRisk={stats.stampede_risk}
+              timeToCritical={stats.time_to_critical}
+              status={stats.status}
+            />
 
-          {/* Crowd Capacity */}
-          <div className="card bg-black/50">
-            <div className="card-header !mb-2">
-                <span className="card-title"><Users size={12}/> CROWD CAPACITY</span>
-                <span className="text-[10px] font-mono text-neon-blue animate-pulse">LIVE</span>
-            </div>
-            <div className="flex items-end justify-between mb-2">
-                <div className="text-3xl font-mono font-bold tracking-tighter text-white">
-                    {stats.count}<span className="text-lg text-amd-silver/40">/{stats.max_capacity}</span>
-                </div>
-                <div className="text-right">
-                    <div className="text-xs font-mono text-amd-silver">{stats.capacity_pct.toFixed(1)}%</div>
-                    <div className="text-[9px] font-mono text-amd-silver/50">CAPACITY</div>
-                </div>
-            </div>
-            {/* Animated gradient capacity bar */}
-            <div className="w-full h-2.5 bg-gray-800/80 rounded-full overflow-hidden relative">
-                <div
-                    className="capacity-bar-gradient h-full rounded-full"
-                    style={getCapacityBarStyle()}
-                />
-                {/* Moving percentage label */}
-                {stats.capacity_pct > 5 && (
-                  <div
-                    className="absolute top-1/2 -translate-y-1/2 text-[7px] font-bold font-mono text-white/80 pointer-events-none"
-                    style={{ left: `calc(${Math.min(stats.capacity_pct, 95)}% - 16px)` }}
-                  >
-                    {stats.capacity_pct.toFixed(0)}%
-                  </div>
-                )}
-            </div>
+            <RecentEvents events={recentEvents} />
           </div>
 
-          {/* Pressure Index */}
-          <StatsCard
-              title="PRESSURE INDEX"
-              value={stats.pressure_index.toFixed(0)}
-              icon={Gauge}
-              color={stats.pressure_index > 60 ? "text-red-400" : stats.pressure_index > 30 ? "text-yellow-400" : "text-emerald-400"}
-              subtext="Physical compression between detected individuals."
-              chart={
-                   <div className="w-full bg-gray-800 h-1.5 mt-2 rounded-full overflow-hidden">
-                     <div className={`${stats.pressure_index > 60 ? 'bg-red-500' : stats.pressure_index > 30 ? 'bg-yellow-500' : 'bg-emerald-500'} h-full transition-all duration-500 rounded-full`} style={{ width: `${stats.pressure_index}%` }}/>
-                   </div>
-              }
-          />
-
-          {/* Wi-Fi / ESP32 Card */}
-          <div className="card bg-black/50">
-            <div className="card-header !mb-1">
-                <span className="card-title"><Wifi size={12}/> ESTIMATED DEVICES</span>
-                <span className={`text-[10px] font-mono animate-pulse ${activeWifiZones > 0 ? 'text-neon-green' : 'text-amd-silver/40'}`}>
-                    {activeWifiZones > 0 ? 'LIVE' : 'SIMULATED'}
-                </span>
-            </div>
-            <div className="flex items-end gap-2 mb-2">
-                <div className="text-3xl font-mono font-bold tracking-tighter text-neon-blue">
-                    {stats.wifi_probe_count}
-                </div>
-                <div className="text-[9px] font-mono text-amd-silver/50 pb-1">DEVICES DETECTED</div>
+          {/* ── CENTER COLUMN: Dominant Camera Feed (60%) & Bottom Timeline ── */}
+          <div className="col-span-12 lg:col-span-6 flex flex-col gap-3">
+            <div className="flex-1 flex flex-col min-h-0">
+              <VideoFeed
+                imageRef={imageRef}
+                isRecording={stats.recording}
+                visionMode={stats.mode}
+                activeCamera={activeCamera}
+                soundEnabled={soundEnabled}
+                status={sosMode ? 'EVACUATE' : stats.status}
+                flowDirection={stats.flow_direction}
+                sectors={stats.sectors}
+                onToggleRecord={() => sendCommand(stats.recording ? 'stop_recording' : 'start_recording')}
+                onToggleVision={() =>
+                  sendCommand('set_mode', { mode: stats.mode === 'OPTICAL' ? 'thermal' : 'optical' })
+                }
+                onToggleSound={() => setSoundEnabled(!soundEnabled)}
+                onSetGeofence={(points) => sendCommand('set_geofence', { points })}
+                onSelectCamera={handleCameraChange}
+              />
             </div>
 
-            {/* Zone breakdown table */}
-            {Object.keys(stats.wifi_zones).length > 0 ? (
-              <div className="mt-1 space-y-1">
-                <div className="grid grid-cols-4 gap-1 text-[7px] font-mono text-amd-silver/40 uppercase tracking-wider px-1">
-                  <span>ZONE</span><span className="text-center">CNT</span><span className="text-center">RSSI</span><span className="text-center">STATUS</span>
+            {/* Bottom Timeline */}
+            <Timeline currentDensity={stats.density} />
+          </div>
+
+          {/* ── RIGHT COLUMN: Mini Analytics, Tactical Map, Active Alerts, Assistant Trigger ── */}
+          <div className="col-span-12 lg:col-span-3 flex flex-col gap-3">
+            {/* Mini Analytics Chart */}
+            <div className="card-enterprise p-3.5 flex flex-col h-[180px]">
+              <div className="flex items-center justify-between pb-1 border-b border-white/[0.06]">
+                <h3 className="text-xs font-semibold tracking-wider text-zinc-300 uppercase font-['Space_Grotesk']">
+                  Density Telemetry
+                </h3>
+                <div className="flex items-center gap-2 text-[9px] font-mono">
+                  <span className="flex items-center gap-1 text-red-400">
+                    <span className="w-1.5 h-1.5 rounded-full bg-red-500" /> Density
+                  </span>
+                  <span className="flex items-center gap-1 text-amber-400">
+                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400" /> Agitation
+                  </span>
                 </div>
-                {Object.entries(stats.wifi_zones).map(([zoneName, zoneData]) => (
-                  <div key={zoneName} className="grid grid-cols-4 gap-1 text-[8px] font-mono items-center px-1 py-0.5 rounded bg-white/3 hover:bg-white/5 transition-colors">
-                    <span className="text-white/70 truncate">{zoneName}</span>
-                    <span className="text-center text-neon-blue">{zoneData.count}</span>
-                    <span className="text-center text-amd-silver/60">{zoneData.rssi.toFixed(0)}</span>
-                    <span className="flex justify-center">
-                      <span className={`w-1.5 h-1.5 rounded-full ${zoneData.status === 'ACTIVE' ? 'sensor-dot-active' : 'sensor-dot-offline'}`}/>
-                    </span>
-                  </div>
-                ))}
               </div>
-            ) : (
-              <div className="text-[9px] font-mono text-amd-silver/30 mt-1">
-                ESP32 sensor network • Privacy: Hashed MACs
-              </div>
-            )}
-          </div>
 
-          {/* Stampede Risk Gauge */}
-          <RiskGauge risk={stats.stampede_risk} status={stats.status} />
-
-          {/* Time to Critical */}
-          {stats.time_to_critical >= 0 && stats.time_to_critical < 300 && (
-            <div className="card bg-red-900/20 border-red-500/40">
-                <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                        <Timer size={14} className="text-red-400 animate-pulse-fast" />
-                        <span className="text-[10px] font-mono text-red-400 font-bold uppercase tracking-widest">TIME TO CRITICAL</span>
-                    </div>
-                    <div className="text-2xl font-mono font-bold text-red-400">
-                        {stats.time_to_critical === 0 ? 'NOW' : `${stats.time_to_critical}s`}
-                    </div>
-                </div>
-            </div>
-          )}
-
-          {/* System Logs */}
-          <div className="card flex-1 flex flex-col min-h-0 bg-black/40">
-            <div className="card-header !mb-0 border-none bg-white/5 p-2">
-              <span className="card-title text-amd-red"><Terminal size={12}/> SYSTEM LOGS</span>
-            </div>
-            <div ref={logContainerRef} className="flex-1 overflow-y-auto p-2 font-mono text-[9px] tracking-wide space-y-0.5 text-amd-silver/80 scrollbar-hide">
-              {logs.map((log, i) => (
-                <div key={i} className="border-l border-white/10 pl-2 hover:bg-white/5 hover:text-white transition-colors cursor-default">
-                  <span className="opacity-50 mr-1">{">"}</span>{log}
-                </div>
-              ))}
-            </div>
-          </div>
-
-        </div>
-
-        {/* ── CENTER COLUMN ────────────────────────────────────────────────── */}
-        <div className="col-span-12 lg:col-span-6 flex flex-col gap-2 relative group min-h-0">
-           {/* Multi-Camera Tabs */}
-           <div className="flex items-center gap-1">
-               {['CAM_01', 'CAM_02', 'CAM_03'].map(cam => (
-                   <button
-                       key={cam}
-                       onClick={() => handleCameraChange(cam)}
-                       className={`flex items-center gap-1.5 px-3 py-1 text-[9px] font-mono tracking-wider border transition-all ${
-                           activeCamera === cam
-                               ? 'bg-amd-red text-white border-amd-red'
-                               : 'bg-black/50 text-amd-silver/60 border-white/10 hover:border-white/30'
-                       }`}
-                   >
-                       <Camera size={10} />
-                       {cam}
-                       {activeCamera === cam && <span className="w-1.5 h-1.5 bg-white rounded-full animate-pulse" />}
-                   </button>
-               ))}
-
-               {/* Emergency SOS Button */}
-               <button
-                   onClick={() => {
-                       setSosMode(!sosMode)
-                       playSound('alert')
-                       if (!sosMode) {
-                           addLog('🚨 EMERGENCY SOS ACTIVATED — ALL UNITS RESPOND')
-                           speakText('Emergency SOS activated. All units respond.')
-                           setAlertHistory(prev => [{
-                               id: 0,
-                               type: 'EMERGENCY SOS',
-                               severity: 'CRITICAL',
-                               message: 'Manual evacuation triggered by operator.',
-                               timestamp: Date.now()
-                           }, ...prev].slice(0, 20))
-                       } else {
-                           addLog('SOS DEACTIVATED — Returning to normal monitoring')
-                           speakText('Emergency SOS deactivated.')
-                       }
-                   }}
-                   className={`ml-auto flex items-center gap-1.5 px-3 py-1 text-[9px] font-mono font-bold tracking-wider border transition-all ${
-                       sosMode
-                           ? 'bg-red-600 text-white border-red-500 animate-pulse shadow-[0_0_20px_rgba(239,68,68,0.5)]'
-                           : 'bg-red-500/10 text-red-400 border-red-500/40 hover:bg-red-500/20'
-                   }`}
-               >
-                   <Siren size={12} />
-                   {sosMode ? 'CANCEL SOS' : 'EMERGENCY SOS'}
-               </button>
-            </div>
-
-           {/* ── Video Feed — passes imageRef, not image string ── */}
-           <VideoFeed
-               imageRef={imageRef}
-               isRecording={stats.recording}
-               visionMode={stats.mode}
-               activeCamera={activeCamera}
-               soundEnabled={soundEnabled}
-               status={sosMode ? 'EVACUATE' : stats.status}
-               flowDirection={stats.flow_direction}
-               sectors={stats.sectors}
-               onToggleRecord={() => sendCommand(stats.recording ? 'stop_recording' : 'start_recording')}
-               onToggleVision={() => sendCommand('set_mode', { mode: stats.mode === 'OPTICAL' ? 'thermal' : 'optical' })}
-               onToggleSound={() => setSoundEnabled(!soundEnabled)}
-               onSetGeofence={(points) => sendCommand('set_geofence', { points })}
-           />
-
-           {isGlitching && (
-               <div className="absolute inset-0 bg-black z-50 flex items-center justify-center pointer-events-none">
-                   <div className="text-amd-red font-mono text-xl font-bold animate-pulse tracking-widest glitch-text">
-                       RECALIBRATING SIGNAL...
-                   </div>
-               </div>
-           )}
-
-           <VoiceCommand onCommand={handleVoiceCommand} />
-        </div>
-
-        {/* ── RIGHT COLUMN ─────────────────────────────────────────────────── */}
-        <div className="col-span-12 lg:col-span-3 flex flex-col gap-2 min-h-0 overflow-y-auto scrollbar-hide">
-
-           {/* Live Metrics Chart */}
-           <div className="card flex flex-col" style={{ minHeight: '180px', maxHeight: '220px' }}>
-             <div className="card-header">
-               <span className="card-title">LIVE METRICS</span>
-             </div>
-             {/* Chart Legend */}
-             <div className="flex gap-3 mb-1 px-1">
-               <div className="chart-legend-item text-amd-red">
-                 <span className="chart-legend-line bg-amd-red"/>DENSITY
-               </div>
-               <div className="chart-legend-item text-yellow-400">
-                 <span className="chart-legend-line bg-yellow-400"/>AGITATION
-               </div>
-               <div className="chart-legend-item text-neon-blue">
-                 <span className="chart-legend-line" style={{ background: '#00f3ff', borderTop: '1px dashed #00f3ff' }}/>PREDICTED
-               </div>
-             </div>
-             <div className="flex-1 w-full min-h-0">
-               <ResponsiveContainer width="100%" height="100%">
-                 <AreaChart data={history}>
+              <div className="flex-1 w-full min-h-0 pt-2">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={history}>
                     <defs>
-                      <linearGradient id="cyberGradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#ED1C24" stopOpacity={0.8}/>
-                        <stop offset="95%" stopColor="#ED1C24" stopOpacity={0}/>
+                      <linearGradient id="densityGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#ff3b3b" stopOpacity={0.4} />
+                        <stop offset="95%" stopColor="#ff3b3b" stopOpacity={0.0} />
                       </linearGradient>
-                      <linearGradient id="agitGradient" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#EAB308" stopOpacity={0.3}/>
-                        <stop offset="95%" stopColor="#EAB308" stopOpacity={0}/>
+                      <linearGradient id="agitGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#ffc107" stopOpacity={0.25} />
+                        <stop offset="95%" stopColor="#ffc107" stopOpacity={0.0} />
                       </linearGradient>
                     </defs>
-                    {/* Subtle grid background */}
-                    <CartesianGrid strokeDasharray="3 3" stroke="#1a1a1a" vertical={true} />
+                    <CartesianGrid strokeDasharray="2 2" stroke="rgba(255,255,255,0.04)" vertical={false} />
                     <XAxis dataKey="time" hide />
-                    <YAxis hide domain={[0, 'auto']}/>
+                    <YAxis hide domain={[0, 'auto']} />
                     <Tooltip
-                      contentStyle={{ backgroundColor: '#000', borderColor: '#333', fontSize: '10px' }}
-                      itemStyle={{ color: '#fff', fontSize: '10px' }}
+                      contentStyle={{
+                        backgroundColor: '#121215',
+                        borderColor: 'rgba(255,255,255,0.1)',
+                        fontSize: '11px',
+                        borderRadius: '8px',
+                      }}
+                      itemStyle={{ color: '#fff' }}
                     />
-                    <Area type="monotone" dataKey="agitation" stroke="#EAB308" fill="url(#agitGradient)" strokeWidth={1.5} />
-                    <Area type="monotone" dataKey="predicted_density" stroke="#00f3ff" strokeDasharray="4 4" fill="none" strokeWidth={1} />
-                    <Area type="monotone" dataKey="density" stroke="#ED1C24" fill="url(#cyberGradient)" strokeWidth={2} />
-                 </AreaChart>
-               </ResponsiveContainer>
-             </div>
-           </div>
-
-           {/* Quick Stats Row */}
-           <div className="card bg-black/50 !p-2">
-              <div className="grid grid-cols-3 divide-x divide-white/10">
-                <div className="text-center px-2">
-                    <div className="text-[8px] font-mono text-amd-silver/50 uppercase">VELOCITY</div>
-                    <div className="text-lg font-mono font-bold text-neon-blue">{stats.avg_velocity.toFixed(0)}<span className="text-[8px] text-amd-silver/40"> px/s</span></div>
-                </div>
-                <div className="text-center px-2">
-                    <div className="text-[8px] font-mono text-amd-silver/50 uppercase">DENSITY</div>
-                    <div className="text-lg font-mono font-bold text-amd-red">{stats.density.toFixed(2)}</div>
-                </div>
-                <div className="text-center px-2">
-                    <div className="text-[8px] font-mono text-amd-silver/50 uppercase">FLOW</div>
-                    <div className="text-sm font-mono font-bold text-neon-green flex items-center justify-center gap-1">
-                        <Navigation size={12} style={{ transform: `rotate(${stats.flow_direction.angle}deg)` }} />
-                        {stats.flow_direction.label}
-                    </div>
-                </div>
+                    <Area
+                      type="monotone"
+                      dataKey="agitation"
+                      stroke="#ffc107"
+                      fill="url(#agitGrad)"
+                      strokeWidth={1.5}
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="density"
+                      stroke="#ff3b3b"
+                      fill="url(#densityGrad)"
+                      strokeWidth={2}
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
               </div>
-           </div>
+            </div>
 
-           {/* Live Map */}
-           <div className="flex-1 min-h-0" style={{ minHeight: '160px' }}>
-               <LiveMap alerts={alerts} />
-           </div>
+            {/* Tactical Map */}
+            <div className="h-[200px]">
+              <LiveMap alerts={mapAlerts} />
+            </div>
 
-           {/* PA Announcements */}
-           <PAAnnouncements
-               density={stats.density}
-               status={sosMode ? 'CRITICAL' : stats.status}
-               sectors={stats.sectors}
-               capacity_pct={stats.capacity_pct}
-           />
+            {/* Risk Gauge */}
+            <RiskGauge risk={stats.stampede_risk} status={stats.status} />
 
-           {/* Alert History */}
-           <div className="card bg-black/50 flex flex-col" style={{ minHeight: '100px', maxHeight: '160px' }}>
-               <div className="card-header !mb-1">
-                   <span className="card-title text-amd-red">ALERT HISTORY</span>
-                   <div className="flex items-center gap-2">
-                     <span className="text-[9px] font-mono text-amd-silver/40">{alertHistory.length} events</span>
-                     {alertHistory.length > 0 && (
-                       <button
-                         onClick={() => setAlertHistory([])}
-                         className="flex items-center gap-1 text-[8px] font-mono text-amd-silver/40 hover:text-red-400 transition-colors"
-                         title="Clear all alerts"
-                       >
-                         <Trash2 size={10}/> CLEAR ALL
-                       </button>
-                     )}
-                   </div>
-               </div>
-               <div className="flex-1 overflow-hidden min-h-0">
-                   <AlertTimeline alerts={alertHistory} />
-               </div>
-           </div>
+            {/* Active Alerts Panel */}
+            <ActiveAlertsPanel activeAlert={persistentAlert} alertHistory={alertHistory} />
 
-           {/* Chat Trigger */}
-           <button
-                 onClick={() => {
-                     setChatOpen(!chatOpen)
-                     playSound('click')
-                 }}
-                 className={`w-full py-2 border border-amd-silver/30 backdrop-blur-sm text-amd-silver font-mono text-[10px] uppercase tracking-widest hover:bg-white/5 transition-colors flex items-center justify-center gap-2 ${chatOpen ? 'bg-amd-red text-white border-amd-red' : ''}`}
-           >
-                <MessageSquare size={12}/> PULSE AI ASSISTANT
-           </button>
-
+            {/* AI Assistant Drawer Trigger */}
+            <button
+              onClick={() => {
+                setChatOpen(!chatOpen);
+                playSound('click');
+              }}
+              className="card-enterprise p-3 flex items-center justify-between text-xs font-semibold font-['Space_Grotesk'] text-zinc-200 hover:border-cyan-500/40 hover:text-white transition-all group"
+            >
+              <div className="flex items-center gap-2">
+                <div className="w-6 h-6 rounded-md bg-cyan-500/10 flex items-center justify-center text-cyan-400 group-hover:bg-cyan-500/20 transition-colors">
+                  <Sparkles size={13} />
+                </div>
+                <span>CROWDPULSE AI ASSISTANT</span>
+              </div>
+              <span className="text-[10px] font-mono text-cyan-400 bg-cyan-500/10 px-2 py-0.5 rounded-full">
+                {chatOpen ? 'OPEN' : 'ASK'}
+              </span>
+            </button>
+          </div>
         </div>
-
-        {/* AI Chat Sidebar */}
-        <AIChatSidebar
-            chatOpen={chatOpen}
-            setChatOpen={setChatOpen}
-            chatMessages={chatMessages}
-            chatInput={chatInput}
-            setChatInput={setChatInput}
-            handleChatSubmit={handleChatSubmit}
-            chatContainerRef={chatContainerRef}
-        />
-
-        {/* Evidence Locker Modal */}
-        <EvidenceLocker
-            lockerOpen={lockerOpen}
-            setLockerOpen={setLockerOpen}
-            recordings={recordings}
-            selectedVideo={selectedVideo}
-            setSelectedVideo={setSelectedVideo}
-        />
       </main>
 
-      {/* ── GLOBAL: Crowd Alert overlay ── */}
-      {/* AnimatePresence is deliberately placed OUTSIDE the main render cycle */}
-      <div className="fixed inset-0 pointer-events-none z-[9999] overflow-hidden">
-          <AnimatePresence>
-              {persistentAlert && (
-                  <motion.div
-                      initial={{ x: 100, opacity: 0 }}
-                      animate={{ x: 0, opacity: 1 }}
-                      exit={{ x: 100, opacity: 0 }}
-                      transition={{ duration: 0.2, ease: 'easeOut' }}
-                      className="pointer-events-auto absolute top-20 right-8 z-50"
-                  >
-                      <CrowdAlert alert={persistentAlert} />
-                  </motion.div>
-              )}
-          </AnimatePresence>
-      </div>
+      {/* ── AI Assistant Sidebar ── */}
+      <AIChatSidebar
+        chatOpen={chatOpen}
+        setChatOpen={setChatOpen}
+        chatMessages={chatMessages}
+        chatInput={chatInput}
+        setChatInput={setChatInput}
+        handleChatSubmit={handleChatSubmit}
+        chatContainerRef={chatContainerRef}
+      />
 
+      {/* ── Evidence Locker Modal ── */}
+      <EvidenceLocker
+        lockerOpen={lockerOpen}
+        setLockerOpen={setLockerOpen}
+        recordings={recordings}
+        selectedVideo={selectedVideo}
+        setSelectedVideo={setSelectedVideo}
+      />
     </div>
-  )
+  );
 }
 
-export default App
+export default App;

@@ -579,7 +579,7 @@ class VideoProcessor:
                 cv2.putText(dummy, f"CROWDPULSE v4.0 [SIMULATION]", (12, 22), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (150, 150, 150), 1)
                 cv2.putText(dummy, f"DETECTED: {sim_count} PERSONS",  (12, 42), cv2.FONT_HERSHEY_SIMPLEX, 0.45, (0, 180, 255), 1)
                 cv2.putText(dummy, f"MODEL: YOLOv8m | SIMULATION",    (12, 62), cv2.FONT_HERSHEY_SIMPLEX, 0.4,  (100, 100, 100), 1)
-                cv2.putText(dummy, f"TEAM FANTASTIC FOUR",            (12, 340), cv2.FONT_HERSHEY_SIMPLEX, 0.4,  (237, 28, 36), 1)
+                cv2.putText(dummy, f"CROWDPULSE INTELLIGENCE PLATFORM", (12, 340), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (160, 160, 160), 1)
 
                 sim_params: list[int] = [int(cv2.IMWRITE_JPEG_QUALITY), 45]
                 _ret: bool

@@ -13,7 +13,7 @@ const bootMessages = [
     { text: "CALIBRATING DENSITY THRESHOLD MATRIX...", delay: 1400 },
     { text: "ESTABLISHING UPLINK TO COMMAND CENTER...", delay: 1900 },
     { text: "ACTIVATING WI-FI PROBE SENSORS... 68 DEVICES DETECTED", delay: 2300 },
-    { text: "TEAM FANTASTIC FOUR PROTOCOLS INITIATED...", delay: 2700 },
+    { text: "ENTERPRISE SECURITY POLICIES LOADED...", delay: 2700 },
     { text: "MOUNTING EVACUATION ROUTE DATABASE... 3 ROUTES LOADED", delay: 3200 },
     { text: "BYTETRACK MULTI-OBJECT TRACKER ONLINE", delay: 3600 },
     { text: "RUNNING SYSTEM DIAGNOSTICS... ALL SYSTEMS GREEN", delay: 4000 },
@@ -92,17 +92,15 @@ const SplashScreen: React.FC<SplashScreenProps> = ({ onComplete }) => {
                         transition={{ duration: 0.5 }}
                         className="flex items-center gap-4 mb-12"
                     >
-                        <div className="w-14 h-14 border-2 border-amd-red flex items-center justify-center relative">
-                            <Activity className="h-8 w-8 text-amd-red" />
-                            <div className="absolute -top-1 -right-1 w-2 h-2 bg-amd-red" />
-                            <div className="absolute -bottom-1 -left-1 w-2 h-2 bg-amd-red" />
+                        <div className="w-14 h-14 border-2 border-red-500 rounded-xl flex items-center justify-center relative bg-red-500/10">
+                            <Activity className="h-8 w-8 text-red-500" />
                         </div>
                         <div>
-                            <h1 className="text-4xl font-bold tracking-[0.3em] font-mono text-white">
-                                CROWD<span className="text-amd-red">PULSE</span>
+                            <h1 className="text-4xl font-bold tracking-[0.2em] font-['Space_Grotesk'] text-white">
+                                CROWD<span className="text-red-500">PULSE</span>
                             </h1>
-                            <div className="text-[10px] text-amd-silver tracking-[0.5em] uppercase">
-                                AUTONOMOUS CROWD INTELLIGENCE <br/> CRAFTED BY TEAM FANTASTIC FOUR
+                            <div className="text-[10px] text-zinc-400 tracking-[0.3em] uppercase">
+                                AUTONOMOUS CROWD INTELLIGENCE PLATFORM
                             </div>
                         </div>
                     </motion.div>

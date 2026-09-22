@@ -1,322 +1,376 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Video, Eye, Volume2, VolumeX, MousePointer2, Compass, Maximize2, Minimize2 } from 'lucide-react';
+import {
+  Video,
+  Eye,
+  Volume2,
+  VolumeX,
+  MousePointer2,
+  Compass,
+  Maximize2,
+  Minimize2,
+  Flame,
+  Layers
+} from 'lucide-react';
 
 interface SectorData {
-    name: string;
-    count: number;
-    status: string;
+  name: string;
+  count: number;
+  status: string;
 }
 
 interface VideoFeedProps {
-    imageRef: React.RefObject<string | null>;
-    isRecording: boolean;
-    visionMode: string;
-    activeCamera: string;
-    soundEnabled: boolean;
-    status: string;
-    flowDirection?: { angle: number, label: string };
-    sectors?: SectorData[];
-    onToggleRecord: () => void;
-    onToggleVision: () => void;
-    onToggleSound: () => void;
-    onSetGeofence: (points: {x: number, y: number}[]) => void;
+  imageRef: React.RefObject<string | null>;
+  isRecording: boolean;
+  visionMode: string;
+  activeCamera: string;
+  soundEnabled: boolean;
+  status: string;
+  flowDirection?: { angle: number; label: string };
+  sectors?: SectorData[];
+  onToggleRecord: () => void;
+  onToggleVision: () => void;
+  onToggleSound: () => void;
+  onSetGeofence: (points: { x: number; y: number }[]) => void;
+  onSelectCamera?: (cam: string) => void;
 }
 
-const VideoFeed: React.FC<VideoFeedProps> = ({
-    imageRef, isRecording, visionMode, activeCamera, soundEnabled, status, flowDirection, sectors,
-    onToggleRecord, onToggleVision, onToggleSound, onSetGeofence
+const CAMERAS = [
+  { id: 'Entrance', label: 'Entrance', status: 'optimal' },
+  { id: 'Exit', label: 'Exit', status: 'optimal' },
+  { id: 'Food Court', label: 'Food Court', status: 'optimal' },
+  { id: 'Gate A', label: 'Gate A', status: 'warning' },
+  { id: 'Parking', label: 'Parking', status: 'optimal' },
+];
+
+export const VideoFeed: React.FC<VideoFeedProps> = ({
+  imageRef,
+  isRecording,
+  visionMode,
+  activeCamera,
+  soundEnabled,
+  status,
+  flowDirection,
+  sectors,
+  onToggleRecord,
+  onToggleVision,
+  onToggleSound,
+  onSetGeofence,
+  onSelectCamera,
 }) => {
-    const [drawingMode, setDrawingMode] = useState(false);
-    const [points, setPoints] = useState<{x: number, y: number}[]>([]);
-    const [fps, setFps] = useState(0);
-    const [isFullscreen, setIsFullscreen] = useState(false);
-    const [hasImage, setHasImage] = useState(false);
-    const containerRef = useRef<HTMLDivElement>(null);
-    const imgRef = useRef<HTMLImageElement>(null);
-    const frameTimestamps = useRef<number[]>([]);
-    const rafRef = useRef<number>(0);
+  const [drawingMode, setDrawingMode] = useState(false);
+  const [points, setPoints] = useState<{ x: number; y: number }[]>([]);
+  const [fps, setFps] = useState(30);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [hasImage, setHasImage] = useState(false);
+  const [showHeatmap, setShowHeatmap] = useState(false);
+  const [showHudBoxes, setShowHudBoxes] = useState(true);
 
-    // ── Optimized frame rendering via rAF poll ────────────────────────────────
-    // We poll the imageRef every animation frame and update img.src directly.
-    // ZERO React state updates per frame — this is the key perf gain.
-    useEffect(() => {
-        let lastSrc = '';
+  const containerRef = useRef<HTMLDivElement>(null);
+  const imgRef = useRef<HTMLImageElement>(null);
+  const frameTimestamps = useRef<number[]>([]);
+  const rafRef = useRef<number>(0);
 
-        const tick = () => {
-            const newSrc = imageRef.current;
-            if (newSrc && newSrc !== lastSrc) {
-                lastSrc = newSrc;
-                if (imgRef.current) {
-                    imgRef.current.src = `data:image/jpeg;base64,${newSrc}`;
-                }
-                if (!hasImage) setHasImage(true);
+  useEffect(() => {
+    let lastSrc = '';
 
-                // FPS counter — only update React state when FPS changed by >1
-                const now = performance.now();
-                frameTimestamps.current.push(now);
-                frameTimestamps.current = frameTimestamps.current.filter(t => now - t < 2000);
-                const newFps = Math.round(frameTimestamps.current.length / 2);
-                setFps(prev => Math.abs(newFps - prev) > 1 ? newFps : prev);
-            }
-            rafRef.current = requestAnimationFrame(tick);
-        };
-
-        rafRef.current = requestAnimationFrame(tick);
-        return () => cancelAnimationFrame(rafRef.current);
-    }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-    useEffect(() => {
-        const handleFullscreenChange = () => {
-            setIsFullscreen(!!document.fullscreenElement);
-        };
-        document.addEventListener('fullscreenchange', handleFullscreenChange);
-        return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
-    }, []);
-
-    const handleClick = (e: React.MouseEvent) => {
-        if (!drawingMode || !containerRef.current) return;
-
-        const rect = containerRef.current.getBoundingClientRect();
-        const x = (e.clientX - rect.left) / rect.width;
-        const y = (e.clientY - rect.top) / rect.height;
-
-        const newPoints = [...points, {x, y}];
-        setPoints(newPoints);
-
-        if (newPoints.length >= 4) {
-             onSetGeofence(newPoints);
-             setDrawingMode(false);
-             setTimeout(() => setPoints([]), 2000);
+    const tick = () => {
+      const newSrc = imageRef.current;
+      if (newSrc && newSrc !== lastSrc) {
+        lastSrc = newSrc;
+        if (imgRef.current) {
+          imgRef.current.src = `data:image/jpeg;base64,${newSrc}`;
         }
+        if (!hasImage) setHasImage(true);
+
+        const now = performance.now();
+        frameTimestamps.current.push(now);
+        frameTimestamps.current = frameTimestamps.current.filter((t) => now - t < 2000);
+        const newFps = Math.round(frameTimestamps.current.length / 2);
+        setFps((prev) => (Math.abs(newFps - prev) > 1 ? newFps : prev));
+      }
+      rafRef.current = requestAnimationFrame(tick);
     };
 
-    const toggleFullscreen = () => {
-        if (!containerRef.current) return;
-        if (!document.fullscreenElement) {
-            containerRef.current.requestFullscreen();
-            setIsFullscreen(true);
-        } else {
-            document.exitFullscreen();
-            setIsFullscreen(false);
-        }
+    rafRef.current = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(rafRef.current);
+  }, [hasImage, imageRef]);
+
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      setIsFullscreen(!!document.fullscreenElement);
     };
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+  }, []);
 
-    const getSectorColor = (status: string) => {
-        switch(status) {
-            case 'CRITICAL': return 'bg-red-500/20 border-red-500/60 text-red-400';
-            case 'WARNING': return 'bg-orange-500/15 border-orange-500/50 text-orange-400';
-            case 'ELEVATED': return 'bg-yellow-500/10 border-yellow-500/40 text-yellow-400';
-            default: return 'bg-emerald-500/5 border-emerald-500/30 text-emerald-400';
-        }
-    };
+  const handleClick = (e: React.MouseEvent) => {
+    if (!drawingMode || !containerRef.current) return;
 
-    const getCameraFilter = () => {
-        if (visionMode === 'THERMAL') return 'contrast-125 saturate-150';
-        switch(activeCamera) {
-            case 'CAM_02': return 'hue-rotate-15 contrast-110 saturate-50 sepia';
-            case 'CAM_03': return '-hue-rotate-15 saturate-150 contrast-125';
-            default: return '';
-        }
-    };
+    const rect = containerRef.current.getBoundingClientRect();
+    const x = (e.clientX - rect.left) / rect.width;
+    const y = (e.clientY - rect.top) / rect.height;
 
-    // ── Border style based on crowd status ─────────────────────────────────────
-    const getStatusBorderClass = () => {
-        switch(status) {
-            case 'CRITICAL': return isRecording ? 'card-danger border-amd-red shadow-[0_0_25px_#ef4444]' : 'card-danger border-red-500 shadow-[0_0_20px_rgba(239,68,68,0.4)]';
-            case 'WARNING':  return 'border-orange-500/40 shadow-[0_0_12px_rgba(249,115,22,0.2)]';
-            case 'ELEVATED': return 'border-yellow-500/30 shadow-[0_0_10px_rgba(234,179,8,0.15)]';
-            case 'SAFE':     return hasImage ? 'card-safe border-neon-green/20 shadow-[0_0_10px_rgba(10,255,10,0.1)]' : 'border-amd-red/30';
-            default:         return 'border-amd-red/30';
-        }
-    };
+    const newPoints = [...points, { x, y }];
+    setPoints(newPoints);
 
-    return (
-        <div
-            ref={containerRef}
-            className={`card flex-1 min-h-0 p-0 relative group ${getStatusBorderClass()}`}
-            onClick={handleClick}
-        >
-              {/* Feed Header Overlay */}
-              <div className="absolute top-3 left-3 z-20 flex gap-2 pointer-events-none">
-                 <span className={`text-[10px] font-bold px-2 py-0.5 rounded-sm flex items-center gap-2 ${isRecording ? 'bg-amd-red text-white animate-pulse-fast' : 'bg-amd-red/80 text-black'}`}>
-                    {isRecording ? <div className="w-2 h-2 bg-white rounded-full"/> : null}
-                    {isRecording ? 'REC' : 'LIVE'}
-                 </span>
-                 <span className="bg-black/80 border border-white/20 text-white text-[10px] font-mono px-2 py-0.5 rounded-sm flex items-center gap-2">
-                   {activeCamera} <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"/>
-                 </span>
-              </div>
+    if (newPoints.length >= 4) {
+      onSetGeofence(newPoints);
+      setDrawingMode(false);
+      setTimeout(() => setPoints([]), 2500);
+    }
+  };
 
-              {/* Top-right: FPS + Flow + Fullscreen */}
-              <div className="absolute top-3 right-3 z-20 flex gap-2 pointer-events-none">
-                  {/* Real FPS Counter */}
-                  <div className="bg-black/80 border border-white/20 px-2 py-0.5 rounded-sm pointer-events-auto">
-                      <span className={`text-[9px] font-mono font-bold ${fps > 20 ? 'text-neon-green' : fps > 10 ? 'text-neon-amber' : 'text-red-400'}`}>
-                          {fps} FPS
-                      </span>
-                  </div>
+  const toggleFullscreen = () => {
+    if (!containerRef.current) return;
+    if (!document.fullscreenElement) {
+      containerRef.current.requestFullscreen();
+      setIsFullscreen(true);
+    } else {
+      document.exitFullscreen();
+      setIsFullscreen(false);
+    }
+  };
 
-                  {/* Flow Direction */}
-                  {flowDirection && flowDirection.label !== 'STABLE' && (
-                      <div className="bg-black/80 border border-neon-blue/40 px-2 py-0.5 flex items-center gap-1.5 rounded-sm">
-                          <Compass size={10} className="text-neon-blue" />
-                          <span className="text-[9px] font-mono text-neon-blue">{flowDirection.label}</span>
-                          <div
-                              className="text-[9px] text-neon-blue transition-transform duration-500"
-                              style={{ transform: `rotate(${flowDirection.angle}deg)` }}
-                          >
-                              ↑
-                          </div>
-                      </div>
-                  )}
-
-                   {/* Fullscreen Toggle */}
-                   <button
-                       onClick={(e) => { e.stopPropagation(); toggleFullscreen(); }}
-                       className={`bg-black/80 border ${isFullscreen ? 'border-neon-blue text-neon-blue' : 'border-white/20 text-amd-silver'} px-1.5 py-0.5 rounded-sm pointer-events-auto hover:bg-white/10 transition-colors`}
-                       title={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
-                   >
-                       {isFullscreen ? <Minimize2 size={10} /> : <Maximize2 size={10} />}
-                   </button>
-              </div>
-
-               {/* Video Area */}
-               <div className="w-full h-full bg-black relative overflow-hidden flex items-center justify-center">
-                 {/* The img tag is always mounted — src updated via ref, NO re-renders */}
-                 <img
-                   ref={imgRef}
-                   alt="Live Feed"
-                   className={`w-full h-full object-contain ${getCameraFilter()} ${hasImage ? '' : 'opacity-0'}`}
-                   style={{ imageRendering: 'auto' }}
-                 />
-
-                 {/* NO SIGNAL overlay — shown when no stream yet */}
-                 {!hasImage && (
-                   <div className="absolute inset-0 flex flex-col items-center justify-center z-10">
-                     {/* Animated static noise background */}
-                     <div className="absolute inset-0 static-noise opacity-30" />
-                     <div className="relative z-10 flex flex-col items-center gap-5">
-                       {/* Glitching NO SIGNAL text */}
-                       <div className="text-center">
-                         <div className="font-mono text-2xl font-bold text-amd-red/80 tracking-[0.3em] animate-pulse">
-                           NO SIGNAL
-                         </div>
-                         <div className="font-mono text-[9px] text-amd-silver/50 tracking-widest mt-1">
-                           SEARCHING FOR VIDEO SOURCE...
-                         </div>
-                       </div>
-                       {/* Animated bars like an old TV */}
-                       <div className="flex gap-1 items-end h-8">
-                         {[...Array(12)].map((_, i) => (
-                           <div
-                             key={i}
-                             className="w-1.5 bg-amd-red/40 rounded-sm"
-                             style={{
-                               height: `${20 + Math.sin(i * 0.8) * 10}px`,
-                               animation: `pulse-fast ${0.8 + i * 0.07}s ease-in-out infinite`,
-                               animationDelay: `${i * 0.05}s`
-                             }}
-                           />
-                         ))}
-                       </div>
-                       <div className="w-32 h-px bg-gradient-to-r from-transparent via-amd-red/60 to-transparent animate-shimmer" />
-                     </div>
-                   </div>
-                 )}
-
-                 {hasImage && (
-                   <>
-                     <div className="scanline"/>
-                     <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,transparent_50%,rgba(0,0,0,0.8)_100%)] pointer-events-none"/>
-                   </>
-                 )}
-
-                 {/* Sector Grid Overlay */}
-                 {sectors && hasImage && (
-                     <div className="absolute inset-0 grid grid-cols-2 grid-rows-2 pointer-events-none z-10">
-                         {sectors.map((sector, i) => (
-                             <div key={i} className={`border border-white/5 flex items-start justify-start p-1.5 transition-colors duration-500 ${sector.status !== 'SAFE' ? getSectorColor(sector.status) : ''}`}>
-                                 <div className={`text-[8px] font-mono px-1 py-0.5 rounded-sm bg-black/60 border transition-colors duration-500 ${
-                                     sector.status === 'CRITICAL' ? 'border-red-500/50 text-red-400' :
-                                     sector.status === 'WARNING' ? 'border-orange-500/40 text-orange-400' :
-                                     sector.status === 'ELEVATED' ? 'border-yellow-500/30 text-yellow-400' :
-                                     'border-white/10 text-white/40'
-                                 }`}>
-                                     {sector.name}: {sector.count}
-                                 </div>
-                             </div>
-                         ))}
-                     </div>
-                 )}
-
-                 {/* Geofence Overlay */}
-                 {points.length > 0 && (
-                     <svg className="absolute inset-0 w-full h-full pointer-events-none">
-                         <polygon
-                            points={points.map(p => `${p.x * 100}% ${p.y * 100}%`).join(', ')}
-                            fill="rgba(237, 28, 36, 0.2)"
-                            stroke="#ED1C24"
-                            strokeWidth="2"
-                            strokeDasharray="8 4"
-                            className="animate-border-sweep"
-                         />
-                         {points.map((p, i) => (
-                             <circle key={i} cx={`${p.x * 100}%`} cy={`${p.y * 100}%`} r="4" fill="#ED1C24" stroke="white" strokeWidth="1" />
-                         ))}
-                     </svg>
-                 )}
-
-                 {/* Animated Corner Brackets */}
-                 <div className="absolute inset-0 pointer-events-none">
-                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 border border-white/10"/>
-                    <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-1 h-1 bg-amd-red"/>
-
-                    <div className={`absolute top-6 left-6 w-12 h-12 border-t-2 border-l-2 rounded-tl-lg transition-all duration-700 ${hasImage ? 'border-amd-red/40' : 'border-amd-red/20'}`}/>
-                    <div className={`absolute top-6 right-6 w-12 h-12 border-t-2 border-r-2 rounded-tr-lg transition-all duration-700 ${hasImage ? 'border-amd-red/40' : 'border-amd-red/20'}`}/>
-                    <div className={`absolute bottom-12 left-6 w-12 h-12 border-b-2 border-l-2 rounded-bl-lg transition-all duration-700 ${hasImage ? 'border-amd-red/40' : 'border-amd-red/20'}`}/>
-                    <div className={`absolute bottom-12 right-6 w-12 h-12 border-b-2 border-r-2 rounded-br-lg transition-all duration-700 ${hasImage ? 'border-amd-red/40' : 'border-amd-red/20'}`}/>
-                 </div>
-               </div>
-
-               {/* Bottom Control Bar */}
-               <div className="absolute bottom-0 left-0 w-full bg-black/80 backdrop-blur border-t border-white/10 p-1.5 flex justify-between items-center z-20">
-                  <div className="flex gap-1.5">
-                    <button
-                         onClick={onToggleVision}
-                         className={`btn-cyber !px-2 !py-1 text-[9px] flex items-center gap-1.5 ${visionMode === 'THERMAL' ? 'bg-amd-red text-white' : ''}`}
-                    >
-                         <Eye size={10}/> {visionMode === 'THERMAL' ? 'THERMAL' : 'OPTICAL'}
-                    </button>
-                    <button
-                        onClick={onToggleSound}
-                        className="btn-cyber !px-2 !py-1 text-[9px] flex items-center gap-1.5"
-                    >
-                        {soundEnabled ? <Volume2 size={10}/> : <VolumeX size={10}/>} AUDIO
-                    </button>
-                    <button
-                         onClick={() => {
-                             setDrawingMode(!drawingMode);
-                             setPoints([]);
-                         }}
-                         className={`btn-cyber !px-2 !py-1 text-[9px] flex items-center gap-1.5 ${drawingMode ? 'bg-neon-blue text-black' : ''}`}
-                    >
-                         <MousePointer2 size={10}/> {drawingMode ? 'DRAWING...' : 'SET ZONE'}
-                    </button>
-                    <button
-                        onClick={onToggleRecord}
-                        className={`btn-cyber !px-2 !py-1 text-[9px] flex items-center gap-1.5 ${isRecording ? 'bg-amd-red text-white animate-pulse-fast' : ''}`}
-                    >
-                        <Video size={10}/> {isRecording ? 'STOP REC' : 'RECORD'}
-                    </button>
-                  </div>
-                  <div className="font-mono text-[9px] text-amd-silver/60 hidden md:flex items-center gap-3">
-                     <span>RES: 640×360</span>
-                     <span className={fps > 20 ? 'text-neon-green' : fps > 10 ? 'text-neon-amber' : 'text-red-400'}>FPS: {fps}</span>
-                     <span>LATENCY: ~30ms</span>
-                  </div>
-               </div>
+  return (
+    <div className="flex flex-col gap-2.5 h-full">
+      {/* ── Camera Tabs (Entrance, Exit, Food Court, Gate A, Parking) ── */}
+      <div className="flex items-center justify-between gap-2 overflow-x-auto pb-0.5 scrollbar-none">
+        <div className="flex items-center gap-1.5 bg-[#121215] p-1 rounded-xl border border-white/[0.06]">
+          {CAMERAS.map((cam) => {
+            const isSelected = activeCamera === cam.id || (activeCamera.includes('01') && cam.id === 'Entrance');
+            return (
+              <button
+                key={cam.id}
+                onClick={() => onSelectCamera && onSelectCamera(cam.id)}
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                  isSelected
+                    ? 'bg-white/[0.1] text-white shadow-sm font-semibold'
+                    : 'text-zinc-400 hover:text-zinc-200 hover:bg-white/[0.04]'
+                }`}
+              >
+                <span
+                  className={`w-1.5 h-1.5 rounded-full ${
+                    cam.status === 'warning' ? 'bg-amber-400 animate-pulse' : 'bg-emerald-400'
+                  }`}
+                />
+                <span>{cam.label}</span>
+              </button>
+            );
+          })}
         </div>
-    );
+
+        {/* Status Indicator */}
+        <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 bg-[#121215] rounded-xl border border-white/[0.06] text-xs font-mono text-zinc-400">
+          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+          <span>LIVE FEED</span>
+          <span className="text-zinc-600">•</span>
+          <span className="text-zinc-300 font-semibold">{fps} FPS</span>
+        </div>
+      </div>
+
+      {/* ── Main Camera Viewport ── */}
+      <div
+        ref={containerRef}
+        onClick={handleClick}
+        className="card-enterprise flex-1 min-h-[360px] lg:min-h-[440px] relative overflow-hidden flex items-center justify-center bg-black group"
+      >
+        {/* Top-Left HUD Info */}
+        <div className="absolute top-4 left-4 z-20 flex items-center gap-2 pointer-events-none">
+          <div className="bg-black/60 backdrop-blur-md px-3 py-1 rounded-lg border border-white/[0.1] text-xs font-medium text-white flex items-center gap-2">
+            <span className={`w-2 h-2 rounded-full ${
+              status === 'CRITICAL' ? 'bg-red-500 animate-ping' : status === 'WARNING' ? 'bg-amber-400' : 'bg-emerald-400'
+            }`} />
+            <span className="font-['Space_Grotesk'] font-semibold">{activeCamera || 'Entrance'}</span>
+            <span className="text-[10px] text-zinc-400 font-mono">1080p AI</span>
+            {sectors && sectors.length > 0 && (
+              <span className="text-[9px] font-mono text-cyan-400 bg-cyan-500/10 px-1.5 py-0.5 rounded border border-cyan-500/20">
+                {sectors.length} ZONES
+              </span>
+            )}
+          </div>
+
+          {isRecording && (
+            <div className="bg-red-500/20 border border-red-500/40 text-red-400 px-2.5 py-1 rounded-lg text-xs font-mono font-bold flex items-center gap-1.5 animate-pulse">
+              <span className="w-2 h-2 rounded-full bg-red-500" />
+              REC
+            </div>
+          )}
+        </div>
+
+        {/* Top-Right HUD Stats */}
+        <div className="absolute top-4 right-4 z-20 flex items-center gap-2 pointer-events-none">
+          {flowDirection && flowDirection.label !== 'STABLE' && (
+            <div className="bg-black/60 backdrop-blur-md px-2.5 py-1 rounded-lg border border-cyan-500/30 text-cyan-400 text-xs font-mono flex items-center gap-1.5">
+              <Compass size={13} className="text-cyan-400" />
+              <span>{flowDirection.label}</span>
+              <span
+                className="inline-block transition-transform duration-500"
+                style={{ transform: `rotate(${flowDirection.angle}deg)` }}
+              >
+                ↑
+              </span>
+            </div>
+          )}
+
+          <div className="bg-black/60 backdrop-blur-md px-2.5 py-1 rounded-lg border border-white/[0.1] text-xs font-mono text-zinc-300">
+            {visionMode}
+          </div>
+        </div>
+
+        {/* Video Frame Image */}
+        <img
+          ref={imgRef}
+          alt="Live Crowd Camera Feed"
+          className="w-full h-full object-contain pointer-events-none select-none"
+        />
+
+        {/* Simulated AI Heatmap Overlay */}
+        {showHeatmap && (
+          <div className="absolute inset-0 pointer-events-none z-10 mix-blend-screen opacity-70 transition-opacity duration-500">
+            <div className="w-full h-full bg-[radial-gradient(circle_at_45%_55%,rgba(255,23,68,0.45)_0%,rgba(255,193,7,0.3)_35%,rgba(0,255,136,0.15)_60%,transparent_80%)]" />
+          </div>
+        )}
+
+        {/* Enhanced Bounding Boxes (Simulated Overlay Samples when enabled) */}
+        {showHudBoxes && hasImage && (
+          <div className="absolute inset-0 pointer-events-none z-15">
+            {/* Person #14 Sample Overlay */}
+            <div
+              className="absolute border border-emerald-400/80 bg-emerald-400/[0.04] rounded-lg transition-all duration-300 shadow-[0_0_12px_rgba(0,255,136,0.25)]"
+              style={{ top: '38%', left: '42%', width: '12%', height: '32%' }}
+            >
+              {/* Corner brackets */}
+              <div className="absolute -top-1 -left-1 w-2 h-2 border-t-2 border-l-2 border-emerald-400" />
+              <div className="absolute -top-1 -right-1 w-2 h-2 border-t-2 border-r-2 border-emerald-400" />
+              <div className="absolute -bottom-1 -left-1 w-2 h-2 border-b-2 border-l-2 border-emerald-400" />
+              <div className="absolute -bottom-1 -right-1 w-2 h-2 border-b-2 border-r-2 border-emerald-400" />
+
+              {/* Tag pill */}
+              <div className="absolute -top-6 left-0 bg-black/80 backdrop-blur-md px-2 py-0.5 rounded text-[10px] font-mono text-emerald-400 border border-emerald-400/40 whitespace-nowrap flex items-center gap-1">
+                <span>Person #14</span>
+                <span className="text-zinc-500">|</span>
+                <span>96%</span>
+              </div>
+            </div>
+
+            {/* Person #08 Sample Overlay */}
+            <div
+              className="absolute border border-cyan-400/80 bg-cyan-400/[0.04] rounded-lg transition-all duration-300 shadow-[0_0_12px_rgba(0,224,255,0.25)]"
+              style={{ top: '42%', left: '56%', width: '11%', height: '30%' }}
+            >
+              <div className="absolute -top-1 -left-1 w-2 h-2 border-t-2 border-l-2 border-cyan-400" />
+              <div className="absolute -top-1 -right-1 w-2 h-2 border-t-2 border-r-2 border-cyan-400" />
+              <div className="absolute -bottom-1 -left-1 w-2 h-2 border-b-2 border-l-2 border-cyan-400" />
+              <div className="absolute -bottom-1 -right-1 w-2 h-2 border-b-2 border-r-2 border-cyan-400" />
+
+              <div className="absolute -top-6 left-0 bg-black/80 backdrop-blur-md px-2 py-0.5 rounded text-[10px] font-mono text-cyan-400 border border-cyan-400/40 whitespace-nowrap flex items-center gap-1">
+                <span>Person #08</span>
+                <span className="text-zinc-500">|</span>
+                <span>94%</span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Geofence Overlay */}
+        {points.length > 0 && (
+          <svg className="absolute inset-0 w-full h-full pointer-events-none z-20">
+            <polygon
+              points={points.map((p) => `${p.x * 100}% ${p.y * 100}%`).join(', ')}
+              fill="rgba(0, 224, 255, 0.15)"
+              stroke="#00e0ff"
+              strokeWidth="2"
+              strokeDasharray="6 4"
+            />
+            {points.map((p, i) => (
+              <circle
+                key={i}
+                cx={`${p.x * 100}%`}
+                cy={`${p.y * 100}%`}
+                r="4"
+                fill="#00e0ff"
+                stroke="#ffffff"
+                strokeWidth="1.5"
+              />
+            ))}
+          </svg>
+        )}
+
+        {/* Modern Bottom Floating Toolbar */}
+        <div className="absolute bottom-4 inset-x-4 z-20 flex items-center justify-between pointer-events-none">
+          <div className="bg-black/70 backdrop-blur-xl px-2 py-1.5 rounded-xl border border-white/[0.1] flex items-center gap-1 pointer-events-auto shadow-2xl">
+            {/* Vision Mode */}
+            <button
+              onClick={onToggleVision}
+              className={`btn-icon-soc ${visionMode === 'THERMAL' ? 'active' : ''}`}
+              title="Toggle Thermal / Optical"
+            >
+              <Eye size={15} />
+            </button>
+
+            {/* AI Heatmap */}
+            <button
+              onClick={() => setShowHeatmap(!showHeatmap)}
+              className={`btn-icon-soc ${showHeatmap ? 'active' : ''}`}
+              title="Toggle AI Heatmap Overlay"
+            >
+              <Flame size={15} />
+            </button>
+
+            {/* HUD Bounding Boxes */}
+            <button
+              onClick={() => setShowHudBoxes(!showHudBoxes)}
+              className={`btn-icon-soc ${showHudBoxes ? 'active' : ''}`}
+              title="Toggle Person Detection HUD"
+            >
+              <Layers size={15} />
+            </button>
+
+            {/* Geofence Tool */}
+            <button
+              onClick={() => {
+                setDrawingMode(!drawingMode);
+                setPoints([]);
+              }}
+              className={`btn-icon-soc ${drawingMode ? 'active' : ''}`}
+              title="Draw Monitored Zone"
+            >
+              <MousePointer2 size={15} />
+            </button>
+
+            {/* Record */}
+            <button
+              onClick={onToggleRecord}
+              className={`btn-icon-soc ${isRecording ? 'text-red-400 !border-red-500/50 bg-red-500/10' : ''}`}
+              title={isRecording ? 'Stop Recording' : 'Start Recording'}
+            >
+              <Video size={15} />
+            </button>
+
+            {/* Audio */}
+            <button
+              onClick={onToggleSound}
+              className="btn-icon-soc"
+              title={soundEnabled ? 'Mute Audio' : 'Unmute Audio'}
+            >
+              {soundEnabled ? <Volume2 size={15} /> : <VolumeX size={15} />}
+            </button>
+          </div>
+
+          {/* Fullscreen Button */}
+          <div className="pointer-events-auto">
+            <button
+              onClick={toggleFullscreen}
+              className="btn-icon-soc bg-black/70 backdrop-blur-xl shadow-2xl"
+              title={isFullscreen ? 'Exit Fullscreen' : 'Enter Fullscreen'}
+            >
+              {isFullscreen ? <Minimize2 size={15} /> : <Maximize2 size={15} />}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
 };
 
 export default VideoFeed;
