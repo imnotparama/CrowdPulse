@@ -10,4 +10,5 @@ dist/
 build/
 *.pt
 *.pth
+backend/recordings/
 backend/backend/recordings/

@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Video, Eye, Volume2, VolumeX, MousePointer2, Compass, Maximize2 } from 'lucide-react';
+import { Video, Eye, Volume2, VolumeX, MousePointer2, Compass, Maximize2, Minimize2 } from 'lucide-react';
 
 interface SectorData {
     name: string;
@@ -64,6 +64,14 @@ const VideoFeed: React.FC<VideoFeedProps> = ({
         rafRef.current = requestAnimationFrame(tick);
         return () => cancelAnimationFrame(rafRef.current);
     }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+    useEffect(() => {
+        const handleFullscreenChange = () => {
+            setIsFullscreen(!!document.fullscreenElement);
+        };
+        document.addEventListener('fullscreenchange', handleFullscreenChange);
+        return () => document.removeEventListener('fullscreenchange', handleFullscreenChange);
+    }, []);
 
     const handleClick = (e: React.MouseEvent) => {
         if (!drawingMode || !containerRef.current) return;
@@ -162,13 +170,14 @@ const VideoFeed: React.FC<VideoFeedProps> = ({
                       </div>
                   )}
 
-                  {/* Fullscreen Toggle */}
-                  <button
-                      onClick={(e) => { e.stopPropagation(); toggleFullscreen(); }}
-                      className="bg-black/80 border border-white/20 px-1.5 py-0.5 rounded-sm pointer-events-auto hover:bg-white/10 transition-colors"
-                  >
-                      <Maximize2 size={10} className="text-amd-silver" />
-                  </button>
+                   {/* Fullscreen Toggle */}
+                   <button
+                       onClick={(e) => { e.stopPropagation(); toggleFullscreen(); }}
+                       className={`bg-black/80 border ${isFullscreen ? 'border-neon-blue text-neon-blue' : 'border-white/20 text-amd-silver'} px-1.5 py-0.5 rounded-sm pointer-events-auto hover:bg-white/10 transition-colors`}
+                       title={isFullscreen ? 'Exit Fullscreen' : 'Fullscreen'}
+                   >
+                       {isFullscreen ? <Minimize2 size={10} /> : <Maximize2 size={10} />}
+                   </button>
               </div>
 
                {/* Video Area */}

@@ -7,6 +7,9 @@ import glob
 import os
 import base64
 import traceback
+import socket
+from pathlib import Path
+from urllib.parse import urlparse
 from typing import Any, Optional
 from collections import deque
 
@@ -16,8 +19,27 @@ from ultralytics import YOLO
 
 from analysis import DensityAnalyzer
 
+BASE_DIR = Path(__file__).resolve().parent
+RECORDINGS_DIR = BASE_DIR / "recordings"
+VIDEOS_DIR = BASE_DIR / "videos"
+RECORDINGS_DIR.mkdir(parents=True, exist_ok=True)
+
 # ─── Phone Stream ────────────────────────────────────────────────────────────────
-PHONE_STREAM_URL = "http://10.85.22.197:8080/video"
+PHONE_STREAM_URL = os.getenv("CROWDPULSE_STREAM_URL", "http://10.85.22.197:8080/video")
+
+
+def _check_stream_reachability(url: str, timeout: float = 1.0) -> bool:
+    """Quickly checks whether the stream URL's host:port is reachable over TCP without blocking."""
+    try:
+        parsed = urlparse(url)
+        host = parsed.hostname
+        if not host:
+            return False
+        port = parsed.port or (443 if parsed.scheme == "https" else 80)
+        with socket.create_connection((host, port), timeout=timeout):
+            return True
+    except Exception:
+        return False
 
 
 class VideoProcessor:
@@ -100,32 +122,32 @@ class VideoProcessor:
     # SOURCE PRIORITY RESOLUTION — Phone stream ALWAYS tried first
     # ─────────────────────────────────────────────────────────────────────────────
     def _resolve_source(self) -> None:
-        # ── Priority 1: Phone stream ──────────────────────────────────────────────
-        print(f"[CrowdPulse] Probing phone stream: {PHONE_STREAM_URL}")
-        test = cv2.VideoCapture(PHONE_STREAM_URL)
-        test.set(cv2.CAP_PROP_BUFFERSIZE, 1)
-        connected = False
-        if test.isOpened():
-            ret, frame_test = test.read()
-            if ret and frame_test is not None:
-                connected = True
-        test.release()
+        # ── Priority 1: Phone stream (only if reachable) ─────────────────────────
+        if PHONE_STREAM_URL and PHONE_STREAM_URL.lower() != "none":
+            print(f"[CrowdPulse] Probing phone stream: {PHONE_STREAM_URL}")
+            if _check_stream_reachability(PHONE_STREAM_URL, timeout=1.0):
+                test = cv2.VideoCapture(PHONE_STREAM_URL)
+                test.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+                connected = False
+                if test.isOpened():
+                    ret, frame_test = test.read()
+                    if ret and frame_test is not None:
+                        connected = True
+                test.release()
 
-        if connected:
-            self.video_source = PHONE_STREAM_URL
-            self._using_phone_stream = True
-            print("[CrowdPulse] ✅ Phone stream connected!")
-            return
-
-        print("[CrowdPulse] ❌ Phone stream failed, trying local videos...")
+                if connected:
+                    self.video_source = PHONE_STREAM_URL
+                    self._using_phone_stream = True
+                    print("[CrowdPulse] ✅ Phone stream connected!")
+                    return
+            print("[CrowdPulse] ❌ Phone stream unreachable, checking local videos...")
 
         # ── Priority 2: Local video files ─────────────────────────────────────────
         search_patterns: list[str] = [
-            "backend/videos/*.mp4", "backend/videos/*.avi",
-            "backend/videos/*.mov", "backend/videos/*.mkv",
-            "videos/*.mp4",  "videos/*.avi",
-            "videos/*.mov",  "videos/*.mkv",
-            "./*.mp4",
+            str(VIDEOS_DIR / "*.mp4"),
+            str(VIDEOS_DIR / "*.avi"),
+            str(VIDEOS_DIR / "*.mov"),
+            str(VIDEOS_DIR / "*.mkv"),
         ]
         found_videos: list[str] = []
         for pattern in search_patterns:
@@ -186,9 +208,13 @@ class VideoProcessor:
         if self.is_recording:
             return
         timestamp_str: str = time.strftime("%Y%m%d-%H%M%S")
-        self.recording_filename = f"backend/recordings/evidence_{timestamp_str}.webm"
+        self.recording_filename = str(RECORDINGS_DIR / f"evidence_{timestamp_str}.webm")
         fourcc: int = cv2.VideoWriter_fourcc(*'vp80')
         self.video_writer = cv2.VideoWriter(self.recording_filename, fourcc, 20.0, (640, 360))
+        if not self.video_writer or not self.video_writer.isOpened():
+            self.recording_filename = str(RECORDINGS_DIR / f"evidence_{timestamp_str}.mp4")
+            fourcc = cv2.VideoWriter_fourcc(*'mp4v')
+            self.video_writer = cv2.VideoWriter(self.recording_filename, fourcc, 20.0, (640, 360))
         self.is_recording = True
 
     def stop_recording(self) -> None:
@@ -567,6 +593,7 @@ class VideoProcessor:
                 analysis_result_sim['fps'] = 30.0
                 analysis_result_sim['wifi_zones'] = {}
                 frame_data = analysis_result_sim
+                frame_count = frame_count + 1  # pyre-ignore
                 time.sleep(0.033)
 
             if frame_count % 2 == 0:

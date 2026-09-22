@@ -1,6 +1,6 @@
 import React from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { X, Film, Download, FileVideo, Shield, Trash2 } from 'lucide-react';
+import { X, Film, Download, FileVideo, Shield } from 'lucide-react';
 
 interface EvidenceLockerProps {
     lockerOpen: boolean;
@@ -171,7 +171,7 @@ const EvidenceLocker: React.FC<EvidenceLockerProps> = ({ lockerOpen, setLockerOp
                                                 initial={{ opacity: 0, x: -10 }}
                                                 animate={{ opacity: 1, x: 0 }}
                                                 transition={{ delay: i * 0.05 }}
-                                                onClick={() => setSelectedVideo(rec)}
+                                                onClick={() => handleSelect(rec)}
                                                 className="flex items-center gap-3 p-3 bg-black/40 border border-white/5 hover:border-amd-red/30 hover:bg-amd-red/5 cursor-pointer transition-all group"
                                             >
                                                 <div className="w-10 h-10 bg-amd-gray border border-white/10 flex items-center justify-center group-hover:border-amd-red/40 transition-colors">

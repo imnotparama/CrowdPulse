@@ -1,6 +1,8 @@
 # pyre-unsafe
 from typing import Any
 from collections import defaultdict
+from pathlib import Path
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -9,16 +11,30 @@ from pydantic import BaseModel
 import asyncio
 import json
 import time
-import glob
-import os
 
 from processor import VideoProcessor
 
-app: FastAPI = FastAPI()
+BASE_DIR = Path(__file__).resolve().parent
+RECORDINGS_DIR = BASE_DIR / "recordings"
+RECORDINGS_DIR.mkdir(parents=True, exist_ok=True)
 
 # ── Wi-Fi Sensor Network ──────────────────────────────────────────────────────
 # Stores live ESP32 zone data: {zone_name: {count, rssi, timestamp}}
 wifi_zones: dict[str, Any] = defaultdict(dict)
+
+processor: VideoProcessor = VideoProcessor()
+processor.wifi_zones = wifi_zones
+start_time: float = time.time()
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    processor.start()
+    yield
+    processor.stop()
+
+
+app: FastAPI = FastAPI(lifespan=lifespan)
 
 # Enable CORS
 app.add_middleware(
@@ -29,28 +45,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Ensure recordings directory exists
-if not os.path.exists("backend/recordings"):
-    os.makedirs("backend/recordings")
-
 # Mount recordings directory to serve files
-app.mount("/recordings", StaticFiles(directory="backend/recordings"), name="recordings")
-
-processor: VideoProcessor = VideoProcessor()
-# Wire the live wifi_zones dict into processor so it can read it each frame
-# without causing a circular import (processor imports nothing from main).
-processor.wifi_zones = wifi_zones
-start_time: float = time.time()
-
-
-@app.on_event("startup")
-def startup_event() -> None:
-    processor.start()
-
-
-@app.on_event("shutdown")
-async def shutdown_event() -> None:
-    processor.stop()
+app.mount("/recordings", StaticFiles(directory=str(RECORDINGS_DIR)), name="recordings")
 
 
 @app.get("/")
@@ -70,7 +66,7 @@ async def get_status() -> dict[str, Any]:
     # Count active ESP32 zones
     now_ts = time.time()
     active_zones = sum(
-        1 for z in wifi_zones.values()
+        1 for z in list(wifi_zones.values())
         if now_ts - z.get("timestamp", 0) <= 10
     )
 
@@ -87,9 +83,9 @@ async def get_status() -> dict[str, Any]:
 
 @app.get("/api/recordings")
 async def get_recordings() -> list[str]:
-    files: list[str] = glob.glob("backend/recordings/*.mp4") + glob.glob("backend/recordings/*.webm")
-    files.sort(key=os.path.getmtime, reverse=True)
-    return [os.path.basename(f) for f in files]
+    files = list(RECORDINGS_DIR.glob("*.mp4")) + list(RECORDINGS_DIR.glob("*.webm"))
+    files.sort(key=lambda f: f.stat().st_mtime, reverse=True)
+    return [f.name for f in files]
 
 
 # ── Wi-Fi ESP32 Endpoints ─────────────────────────────────────────────────────
@@ -118,7 +114,7 @@ async def get_wifi_status() -> dict[str, Any]:
     total = 0
     zones_out: dict[str, Any] = {}
 
-    for zone_name, zone_data in wifi_zones.items():
+    for zone_name, zone_data in list(wifi_zones.items()):
         age = now_ts - zone_data.get("timestamp", 0)
         status = "OFFLINE" if age > 10 else "ACTIVE"
         count = int(zone_data.get("count", 0))
@@ -140,39 +136,50 @@ async def get_wifi_status() -> dict[str, Any]:
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket) -> None:
     await websocket.accept()
-    last_ts: Any = None
-    try:
+
+    async def reader():
         while True:
             try:
-                data_task = asyncio.create_task(websocket.receive_text())
-                done, pending = await asyncio.wait({data_task}, timeout=0.01)
-
-                if data_task in done:
-                    command: str = data_task.result()
-                    cmd_data: dict[str, Any] = json.loads(command)
-
-                    if "action" in cmd_data:
-                        action: str = cmd_data["action"]
-                        if action == "set_mode":
-                            processor.toggle_mode(cmd_data.get("mode", "optical"))
-                        elif action == "start_recording":
-                            processor.start_recording()
-                        elif action == "stop_recording":
-                            processor.stop_recording()
-                        elif action == "set_geofence":
-                            processor.set_geofence(cmd_data.get("points", []))
-                else:
-                    data_task.cancel()
+                command = await websocket.receive_text()
+                cmd_data = json.loads(command)
+                action = cmd_data.get("action")
+                if action == "set_mode":
+                    processor.toggle_mode(cmd_data.get("mode", "optical"))
+                elif action == "start_recording":
+                    processor.start_recording()
+                elif action == "stop_recording":
+                    processor.stop_recording()
+                elif action == "set_geofence":
+                    processor.set_geofence(cmd_data.get("points", []))
+            except WebSocketDisconnect:
+                break
             except Exception:
                 pass
 
-            data = processor.get_latest_data()
-            if data is not None and data.get("timestamp") != last_ts:
-                try:
+    async def writer():
+        last_ts = None
+        while True:
+            try:
+                data = processor.get_latest_data()
+                if data is not None and data.get("timestamp") != last_ts:
                     await websocket.send_json(data)
                     last_ts = data.get("timestamp")
-                except RuntimeError:
-                    break
-            await asyncio.sleep(0.03)
+                await asyncio.sleep(0.033)
+            except WebSocketDisconnect:
+                break
+            except RuntimeError:
+                break
+            except Exception:
+                break
+
+    try:
+        reader_task = asyncio.create_task(reader())
+        writer_task = asyncio.create_task(writer())
+        done, pending = await asyncio.wait(
+            {reader_task, writer_task},
+            return_when=asyncio.FIRST_COMPLETED
+        )
+        for task in pending:
+            task.cancel()
     except WebSocketDisconnect:
-        print("Client disconnected")
+        print("[CrowdPulse] Client disconnected")

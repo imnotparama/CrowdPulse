@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Activity, Cpu, Radio, Wifi, Clock, Signal } from 'lucide-react';
+import { Activity, Cpu, Wifi, Clock, Signal } from 'lucide-react';
 
 interface HeaderProps {
     status: string;

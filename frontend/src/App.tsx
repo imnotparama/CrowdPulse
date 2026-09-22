@@ -396,20 +396,29 @@ function App() {
     speakText(`Switching feed to ${cam.replace('_', ' ')}`)
   }
 
-  const handleVoiceCommand = (cmd: string) => {
-      addLog(`VOICE_CMD_RECEIVED: "${cmd}"`)
-      if (cmd === 'switch_thermal') {
+  const handleVoiceCommand = (rawCmd: string) => {
+      const cmd = rawCmd.toLowerCase().trim()
+      addLog(`VOICE_CMD_RECEIVED: "${rawCmd}"`)
+      if (/thermal|heat/i.test(cmd)) {
           sendCommand('set_mode', { mode: 'thermal' })
           speakText('Engaging thermal vision')
-      } else if (cmd === 'switch_optical') {
+      } else if (/optical|normal|standard/i.test(cmd)) {
           sendCommand('set_mode', { mode: 'optical' })
           speakText('Engaging optical vision')
-      } else if (cmd === 'start_recording') {
-          sendCommand('start_recording')
-          speakText('Starting recording')
-      } else if (cmd === 'stop_recording') {
+      } else if (/stop.*(record|rec)/i.test(cmd)) {
           sendCommand('stop_recording')
           speakText('Stopping recording')
+      } else if (/record|capture|start.*rec/i.test(cmd)) {
+          sendCommand('start_recording')
+          speakText('Starting recording')
+      } else if (/cancel\s+sos|stand\s+down/i.test(cmd)) {
+          setSosMode(false)
+          speakText('Emergency SOS deactivated')
+      } else if (/sos|evacuate|emergency/i.test(cmd)) {
+          setSosMode(true)
+          speakText('Emergency SOS activated')
+      } else {
+          speakText('Command not recognized')
       }
   }
 
