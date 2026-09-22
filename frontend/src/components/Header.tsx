@@ -47,12 +47,16 @@ export const Header: React.FC<HeaderProps> = ({
             <span className="text-base font-bold font-['Space_Grotesk'] text-white tracking-tight">
               Crowd<span className="text-red-500">Pulse</span>
             </span>
-            <span className="text-[9px] font-mono font-semibold uppercase tracking-wider text-cyan-400 bg-cyan-500/10 px-2 py-0.5 rounded border border-cyan-500/20">
-              v4.0 Enterprise
+            <span className="text-[9px] font-mono font-bold uppercase tracking-wider text-cyan-400 bg-cyan-500/10 px-2 py-0.5 rounded-full border border-cyan-500/25 shadow-[0_0_10px_rgba(0,224,255,0.15)]">
+              ENTERPRISE v4.0
+            </span>
+            <span className="hidden md:inline-flex items-center gap-1 text-[9px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/25">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+              AI INFERENCE ENGINE
             </span>
           </div>
           <p className="text-[10px] text-zinc-400 font-sans hidden sm:block">
-            Autonomous Crowd Intelligence Platform
+            Autonomous Crowd Intelligence & Edge Surveillance System
           </p>
         </div>
       </div>

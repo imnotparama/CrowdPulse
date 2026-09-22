@@ -55,35 +55,141 @@ body {
   scrollbar-width: none;
 }
 
-/* ── Enterprise Card & Glass Utilities ───────────────────────────────────────── */
+/* ── Enterprise Card & Glass Utilities (3 Hierarchy Levels) ───────────────────── */
+/* Level 1: Hero & Critical (Camera, AI Insights, Active Alerts) */
+.card-level-1 {
+  background: #141418;
+  border: 1px solid rgba(0, 224, 255, 0.18);
+  border-radius: 1rem;
+  box-shadow: 0 12px 36px -4px rgba(0, 0, 0, 0.6), 0 0 20px -2px rgba(0, 224, 255, 0.05);
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+.card-level-1:hover {
+  border-color: rgba(0, 224, 255, 0.35);
+  box-shadow: 0 16px 44px -4px rgba(0, 0, 0, 0.7), 0 0 28px -2px rgba(0, 224, 255, 0.09);
+}
+
+/* Level 1 Alert variant */
+.card-level-1-alert {
+  background: #151012;
+  border: 1px solid rgba(255, 23, 68, 0.25);
+  border-radius: 1rem;
+  box-shadow: 0 12px 36px -4px rgba(0, 0, 0, 0.6), 0 0 24px -2px rgba(255, 23, 68, 0.08);
+  transition: all 0.25s ease;
+}
+
+/* Level 2: Core Metrics & KPIs (Status Cards, Live Status List) */
+.card-level-2 {
+  background: #101013;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 0.875rem;
+  box-shadow: 0 6px 24px -2px rgba(0, 0, 0, 0.45);
+  transition: border-color 0.2s ease, transform 0.2s ease;
+}
+.card-level-2:hover {
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+/* Level 3: Secondary & Utility (Timeline, Tactical Map, Events) */
+.card-level-3 {
+  background: #0c0c0f;
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  border-radius: 0.75rem;
+  box-shadow: 0 4px 16px -2px rgba(0, 0, 0, 0.35);
+}
+
+/* Legacy fallback */
 .card-enterprise {
   background-color: #121215;
   border: 1px solid rgba(255, 255, 255, 0.07);
-  border-radius: 0.875rem; /* 14px */
+  border-radius: 0.875rem;
   box-shadow: 0 4px 20px -2px rgba(0, 0, 0, 0.5);
   transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
-
 .card-enterprise:hover {
   border-color: rgba(255, 255, 255, 0.12);
 }
 
 .glass-header {
-  background: rgba(14, 14, 18, 0.75);
+  background: rgba(14, 14, 18, 0.85);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   border-bottom: 1px solid rgba(255, 255, 255, 0.07);
 }
 
 .glass-card {
-  background: rgba(18, 18, 22, 0.65);
+  background: rgba(18, 18, 22, 0.75);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   border: 1px solid rgba(255, 255, 255, 0.07);
   border-radius: 0.875rem;
 }
 
-/* ── Modern Badges & Buttons ─────────────────────────────────────────────────── */
+/* ── Modern Glowing Pills & Circular Chips ─────────────────────────────────────── */
+.pill-glowing-safe {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.25rem 0.75rem;
+  font-size: 0.6875rem;
+  font-family: var(--font-mono);
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  border-radius: 9999px;
+  background: rgba(0, 255, 136, 0.1);
+  color: #00ff88;
+  border: 1px solid rgba(0, 255, 136, 0.3);
+  box-shadow: 0 0 12px rgba(0, 255, 136, 0.18);
+}
+
+.pill-glowing-warning {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.25rem 0.75rem;
+  font-size: 0.6875rem;
+  font-family: var(--font-mono);
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  border-radius: 9999px;
+  background: rgba(255, 152, 0, 0.1);
+  color: #ff9800;
+  border: 1px solid rgba(255, 152, 0, 0.3);
+  box-shadow: 0 0 12px rgba(255, 152, 0, 0.18);
+}
+
+.pill-glowing-critical {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 0.25rem 0.75rem;
+  font-size: 0.6875rem;
+  font-family: var(--font-mono);
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  border-radius: 9999px;
+  background: rgba(255, 23, 68, 0.15);
+  color: #ff1744;
+  border: 1px solid rgba(255, 23, 68, 0.4);
+  box-shadow: 0 0 16px rgba(255, 23, 68, 0.3);
+  animation: pulse-border 1.5s infinite;
+}
+
+.chip-circle {
+  width: 1.5rem;
+  height: 1.5rem;
+  border-radius: 9999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  font-weight: 600;
+}
+
 .badge-status {
   display: inline-flex;
   align-items: center;
@@ -166,4 +272,14 @@ body {
 @keyframes pulse-border {
   0%, 100% { border-color: rgba(255, 23, 68, 0.4); }
   50% { border-color: rgba(255, 23, 68, 0.8); }
+}
+
+@keyframes flow-drift {
+  0% { transform: translateX(-6px); opacity: 0.3; }
+  50% { opacity: 0.85; }
+  100% { transform: translateX(6px); opacity: 0.3; }
+}
+
+.animate-flow-drift {
+  animation: flow-drift 1.8s ease-in-out infinite alternate;
 }

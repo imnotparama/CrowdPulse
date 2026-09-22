@@ -72,7 +72,7 @@ export const LiveStatusPanel: React.FC<LiveStatusPanelProps> = ({
   ];
 
   return (
-    <div className="card-enterprise p-4 flex flex-col gap-3">
+    <div className="card-level-2 p-4 flex flex-col gap-3">
       <div className="flex items-center justify-between pb-2 border-b border-white/[0.06]">
         <h3 className="text-xs font-semibold tracking-wider text-zinc-300 uppercase font-['Space_Grotesk']">
           Live Status

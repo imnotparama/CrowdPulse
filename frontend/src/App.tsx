@@ -421,10 +421,10 @@ function App() {
           avgVelocity={stats.avg_velocity}
         />
 
-        {/* ── Three-Column Main Layout: Left (~20%) | Center (~58-60%) | Right (~22%) ── */}
-        <div className="grid grid-cols-12 gap-3 flex-1">
-          {/* ── LEFT COLUMN: Scannable Live Status, AI Insights, Recent Events ── */}
-          <div className="col-span-12 lg:col-span-3 flex flex-col gap-3">
+        {/* ── Three-Column Main Layout: Left (~280px) | Center Hero (~70% flex-1) | Right (~310px) ── */}
+        <div className="flex flex-col lg:flex-row gap-3.5 flex-1 min-h-0">
+          {/* ── LEFT COLUMN: Scannable Live Status, AI Insights (Level 1), Recent Events ── */}
+          <div className="w-full lg:w-[280px] xl:w-[300px] flex-shrink-0 flex flex-col gap-3">
             <LiveStatusPanel
               count={stats.count}
               maxCapacity={stats.max_capacity}
@@ -445,9 +445,9 @@ function App() {
             <RecentEvents events={recentEvents} />
           </div>
 
-          {/* ── CENTER COLUMN: Dominant Camera Feed (60%) & Bottom Timeline ── */}
-          <div className="col-span-12 lg:col-span-6 flex flex-col gap-3">
-            <div className="flex-1 flex flex-col min-h-0">
+          {/* ── CENTER COLUMN: Dominant Camera Hero (~70%) & Bottom Event Timeline ── */}
+          <div className="flex-1 min-w-0 flex flex-col gap-3">
+            <div className="flex-1 flex flex-col min-h-[480px] lg:min-h-[580px]">
               <VideoFeed
                 imageRef={imageRef}
                 isRecording={stats.recording}
@@ -467,14 +467,20 @@ function App() {
               />
             </div>
 
-            {/* Bottom Timeline */}
+            {/* Bottom Event Timeline */}
             <Timeline currentDensity={stats.density} />
           </div>
 
-          {/* ── RIGHT COLUMN: Mini Analytics, Tactical Map, Active Alerts, Assistant Trigger ── */}
-          <div className="col-span-12 lg:col-span-3 flex flex-col gap-3">
+          {/* ── RIGHT COLUMN: Mini Analytics, Semicircle Risk, Tactical Map, Active Alerts, Assistant ── */}
+          <div className="w-full lg:w-[290px] xl:w-[320px] flex-shrink-0 flex flex-col gap-3">
+            {/* Semicircle Risk Gauge */}
+            <RiskGauge risk={stats.stampede_risk} status={stats.status} />
+
+            {/* Active Alerts Panel */}
+            <ActiveAlertsPanel activeAlert={persistentAlert} alertHistory={alertHistory} />
+
             {/* Mini Analytics Chart */}
-            <div className="card-enterprise p-3.5 flex flex-col h-[180px]">
+            <div className="card-level-2 p-3 flex flex-col h-[170px]">
               <div className="flex items-center justify-between pb-1 border-b border-white/[0.06]">
                 <h3 className="text-xs font-semibold tracking-wider text-zinc-300 uppercase font-['Space_Grotesk']">
                   Density Telemetry
@@ -534,15 +540,9 @@ function App() {
             </div>
 
             {/* Tactical Map */}
-            <div className="h-[200px]">
+            <div className="h-[185px]">
               <LiveMap alerts={mapAlerts} />
             </div>
-
-            {/* Risk Gauge */}
-            <RiskGauge risk={stats.stampede_risk} status={stats.status} />
-
-            {/* Active Alerts Panel */}
-            <ActiveAlertsPanel activeAlert={persistentAlert} alertHistory={alertHistory} />
 
             {/* AI Assistant Drawer Trigger */}
             <button
@@ -550,7 +550,7 @@ function App() {
                 setChatOpen(!chatOpen);
                 playSound('click');
               }}
-              className="card-enterprise p-3 flex items-center justify-between text-xs font-semibold font-['Space_Grotesk'] text-zinc-200 hover:border-cyan-500/40 hover:text-white transition-all group"
+              className="card-level-2 p-3 flex items-center justify-between text-xs font-semibold font-['Space_Grotesk'] text-zinc-200 hover:border-cyan-500/40 hover:text-white transition-all group shadow-sm"
             >
               <div className="flex items-center gap-2">
                 <div className="w-6 h-6 rounded-md bg-cyan-500/10 flex items-center justify-center text-cyan-400 group-hover:bg-cyan-500/20 transition-colors">
@@ -558,7 +558,7 @@ function App() {
                 </div>
                 <span>CROWDPULSE AI ASSISTANT</span>
               </div>
-              <span className="text-[10px] font-mono text-cyan-400 bg-cyan-500/10 px-2 py-0.5 rounded-full">
+              <span className="text-[10px] font-mono text-cyan-400 bg-cyan-500/10 px-2 py-0.5 rounded-full border border-cyan-500/20 font-bold">
                 {chatOpen ? 'OPEN' : 'ASK'}
               </span>
             </button>

@@ -24,11 +24,11 @@ export const StatusCardsRow: React.FC<StatusCardsRowProps> = ({
   activeWifiZones,
   avgVelocity,
 }) => {
-  const getDensityLevel = (val: number) => {
-    if (val > 0.5) return { label: 'CRITICAL', color: 'text-red-400', badge: 'badge-status-critical' };
-    if (val > 0.3) return { label: 'WARNING', color: 'text-amber-400', badge: 'badge-status-warning' };
-    if (val > 0.15) return { label: 'ELEVATED', color: 'text-yellow-400', badge: 'badge-status-elevated' };
-    return { label: 'OPTIMAL', color: 'text-emerald-400', badge: 'badge-status-safe' };
+  const getDensityPill = (val: number) => {
+    if (val > 0.5) return <span className="pill-glowing-critical">CRITICAL</span>;
+    if (val > 0.3) return <span className="pill-glowing-warning">WARNING</span>;
+    if (val > 0.15) return <span className="pill-glowing-warning">ELEVATED</span>;
+    return <span className="pill-glowing-safe">OPTIMAL</span>;
   };
 
   const getRiskColor = (risk: number) => {
@@ -38,24 +38,25 @@ export const StatusCardsRow: React.FC<StatusCardsRowProps> = ({
     return '#00ff88';
   };
 
-  const densityInfo = getDensityLevel(density);
   const ringColor = getRiskColor(stampedeRisk);
 
   return (
     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
       {/* 1. People Detected */}
-      <div className="card-enterprise p-3.5 flex flex-col justify-between">
+      <div className="card-level-2 p-3.5 flex flex-col justify-between group hover:border-white/15 transition-all">
         <div className="flex items-center justify-between text-zinc-400 mb-1">
           <div className="flex items-center gap-2 text-xs font-medium tracking-wide">
-            <Users size={14} className="text-zinc-300" />
-            <span>PEOPLE DETECTED</span>
+            <div className="w-5 h-5 rounded-md bg-white/[0.05] flex items-center justify-center text-zinc-300">
+              <Users size={12} />
+            </div>
+            <span className="font-['Space_Grotesk'] font-semibold text-zinc-300">PEOPLE</span>
           </div>
-          <span className="text-[11px] font-mono text-zinc-400 bg-white/[0.04] px-2 py-0.5 rounded-full">
+          <span className="text-[11px] font-mono text-zinc-400 bg-white/[0.04] px-2.5 py-0.5 rounded-full border border-white/[0.06]">
             {capacityPct.toFixed(0)}% CAP
           </span>
         </div>
-        <div className="flex items-baseline gap-2">
-          <span className="text-2xl font-bold font-['Space_Grotesk'] text-white tracking-tight">
+        <div className="flex items-baseline gap-2 mt-1">
+          <span className="text-2xl lg:text-3xl font-bold font-['Space_Grotesk'] text-white tracking-tight">
             {count}
           </span>
           <span className="text-xs font-mono text-zinc-500">/ {maxCapacity}</span>
@@ -63,18 +64,18 @@ export const StatusCardsRow: React.FC<StatusCardsRowProps> = ({
       </div>
 
       {/* 2. Crowd Density */}
-      <div className="card-enterprise p-3.5 flex flex-col justify-between">
+      <div className="card-level-2 p-3.5 flex flex-col justify-between group hover:border-white/15 transition-all">
         <div className="flex items-center justify-between text-zinc-400 mb-1">
           <div className="flex items-center gap-2 text-xs font-medium tracking-wide">
-            <AlertTriangle size={14} className="text-zinc-300" />
-            <span>CROWD DENSITY</span>
+            <div className="w-5 h-5 rounded-md bg-white/[0.05] flex items-center justify-center text-zinc-300">
+              <AlertTriangle size={12} />
+            </div>
+            <span className="font-['Space_Grotesk'] font-semibold text-zinc-300">DENSITY</span>
           </div>
-          <span className={`badge-status ${densityInfo.badge}`}>
-            {densityInfo.label}
-          </span>
+          {getDensityPill(density)}
         </div>
-        <div className="flex items-baseline gap-2">
-          <span className="text-2xl font-bold font-['Space_Grotesk'] text-white tracking-tight">
+        <div className="flex items-baseline gap-2 mt-1">
+          <span className="text-2xl lg:text-3xl font-bold font-['Space_Grotesk'] text-white tracking-tight">
             {density.toFixed(2)}
           </span>
           <span className="text-xs font-mono text-zinc-500">idx</span>
@@ -82,19 +83,22 @@ export const StatusCardsRow: React.FC<StatusCardsRowProps> = ({
       </div>
 
       {/* 3. Stampede Risk with Mini Circular Ring */}
-      <div className="card-enterprise p-3.5 flex flex-col justify-between">
+      <div className="card-level-2 p-3.5 flex flex-col justify-between group hover:border-white/15 transition-all">
         <div className="flex items-center justify-between text-zinc-400 mb-1">
           <div className="flex items-center gap-2 text-xs font-medium tracking-wide">
-            <ShieldCheck size={14} className="text-zinc-300" />
-            <span>STAMPEDE RISK</span>
+            <div className="w-5 h-5 rounded-md bg-white/[0.05] flex items-center justify-center text-zinc-300">
+              <ShieldCheck size={12} />
+            </div>
+            <span className="font-['Space_Grotesk'] font-semibold text-zinc-300">RISK</span>
           </div>
-          <span className="text-[10px] font-mono uppercase tracking-wider text-zinc-400">
+          <span className={status === 'CRITICAL' ? 'pill-glowing-critical' : status === 'WARNING' ? 'pill-glowing-warning' : 'pill-glowing-safe'}>
+            <span className="w-1.5 h-1.5 rounded-full bg-current" />
             {status}
           </span>
         </div>
-        <div className="flex items-center justify-between">
-          <div className="flex items-baseline gap-1.5">
-            <span className="text-2xl font-bold font-['Space_Grotesk'] text-white tracking-tight">
+        <div className="flex items-center justify-between mt-1">
+          <div className="flex items-baseline gap-1">
+            <span className="text-2xl lg:text-3xl font-bold font-['Space_Grotesk'] text-white tracking-tight">
               {stampedeRisk.toFixed(0)}
             </span>
             <span className="text-xs font-mono text-zinc-500">/ 100</span>
@@ -128,19 +132,21 @@ export const StatusCardsRow: React.FC<StatusCardsRowProps> = ({
       </div>
 
       {/* 4. Connected Devices */}
-      <div className="card-enterprise p-3.5 flex flex-col justify-between">
+      <div className="card-level-2 p-3.5 flex flex-col justify-between group hover:border-white/15 transition-all">
         <div className="flex items-center justify-between text-zinc-400 mb-1">
           <div className="flex items-center gap-2 text-xs font-medium tracking-wide">
-            <Wifi size={14} className="text-zinc-300" />
-            <span>DEVICES ACTIVE</span>
+            <div className="w-5 h-5 rounded-md bg-white/[0.05] flex items-center justify-center text-zinc-300">
+              <Wifi size={12} />
+            </div>
+            <span className="font-['Space_Grotesk'] font-semibold text-zinc-300">DEVICES</span>
           </div>
-          <span className="text-[10px] font-mono text-cyan-400 bg-cyan-500/10 px-2 py-0.5 rounded-full flex items-center gap-1">
+          <span className="text-[10px] font-mono text-cyan-400 bg-cyan-500/10 px-2.5 py-0.5 rounded-full flex items-center gap-1 border border-cyan-500/20">
             <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
             {activeWifiZones > 0 ? `${activeWifiZones} ZONES` : 'PROBE'}
           </span>
         </div>
-        <div className="flex items-baseline gap-2">
-          <span className="text-2xl font-bold font-['Space_Grotesk'] text-white tracking-tight">
+        <div className="flex items-baseline gap-2 mt-1">
+          <span className="text-2xl lg:text-3xl font-bold font-['Space_Grotesk'] text-white tracking-tight">
             {wifiProbeCount}
           </span>
           <span className="text-xs font-mono text-zinc-500">probed</span>
@@ -148,19 +154,21 @@ export const StatusCardsRow: React.FC<StatusCardsRowProps> = ({
       </div>
 
       {/* 5. Flow Velocity */}
-      <div className="card-enterprise p-3.5 flex flex-col justify-between">
+      <div className="card-level-2 p-3.5 flex flex-col justify-between group hover:border-white/15 transition-all">
         <div className="flex items-center justify-between text-zinc-400 mb-1">
           <div className="flex items-center gap-2 text-xs font-medium tracking-wide">
-            <Activity size={14} className="text-zinc-300" />
-            <span>FLOW VELOCITY</span>
+            <div className="w-5 h-5 rounded-md bg-white/[0.05] flex items-center justify-center text-zinc-300">
+              <Activity size={12} />
+            </div>
+            <span className="font-['Space_Grotesk'] font-semibold text-zinc-300">SPEED</span>
           </div>
-          <span className="text-[10px] font-mono text-emerald-400 flex items-center gap-0.5">
-            <ArrowUpRight size={12} />
-            NORMAL
+          <span className="text-[10px] font-mono text-emerald-400 flex items-center gap-0.5 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20 font-semibold">
+            <ArrowUpRight size={11} />
+            PACED
           </span>
         </div>
-        <div className="flex items-baseline gap-2">
-          <span className="text-2xl font-bold font-['Space_Grotesk'] text-white tracking-tight">
+        <div className="flex items-baseline gap-2 mt-1">
+          <span className="text-2xl lg:text-3xl font-bold font-['Space_Grotesk'] text-white tracking-tight">
             {(avgVelocity / 25).toFixed(1)}
           </span>
           <span className="text-xs font-mono text-zinc-500">m/s</span>

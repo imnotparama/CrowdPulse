@@ -67,11 +67,11 @@ export const LiveMap: React.FC<LiveMapProps> = ({ alerts }) => {
   }, [droneActive, alerts]);
 
   return (
-    <div className="card-enterprise h-full min-h-[190px] flex flex-col p-0 relative overflow-hidden group">
+    <div className="card-level-3 h-full min-h-[190px] flex flex-col p-0 relative overflow-hidden group">
       {/* Top Floating Header */}
-      <div className="absolute top-2.5 left-2.5 z-[401] bg-black/70 backdrop-blur-md px-2.5 py-1 rounded-lg border border-white/[0.08] text-[10px] text-zinc-300 font-medium flex items-center gap-1.5 shadow-lg">
+      <div className="absolute top-2.5 left-2.5 z-[401] bg-black/75 backdrop-blur-md px-2.5 py-1 rounded-lg border border-white/[0.1] text-[10px] text-zinc-300 font-medium flex items-center gap-1.5 shadow-lg">
         <Radio size={12} className="text-cyan-400 animate-pulse" />
-        <span className="font-['Space_Grotesk'] font-semibold">TACTICAL MAP</span>
+        <span className="font-['Space_Grotesk'] font-bold tracking-tight">TACTICAL MAP & RADAR</span>
       </div>
 
       <div className="absolute top-2.5 right-2.5 z-[401]">
@@ -80,7 +80,7 @@ export const LiveMap: React.FC<LiveMapProps> = ({ alerts }) => {
           className={`px-2.5 py-1 rounded-lg font-mono text-[9px] font-semibold border backdrop-blur-md flex items-center gap-1.5 transition-all shadow-lg ${
             droneActive
               ? 'bg-cyan-500/20 text-cyan-300 border-cyan-400/50'
-              : 'bg-black/70 text-zinc-300 border-white/[0.08] hover:border-cyan-400/40 hover:text-white'
+              : 'bg-black/75 text-zinc-300 border-white/[0.1] hover:border-cyan-400/40 hover:text-white'
           }`}
         >
           <Crosshair size={11} /> {droneActive ? 'RECALL UNIT' : 'DEPLOY DRONE'}
@@ -101,7 +101,7 @@ export const LiveMap: React.FC<LiveMapProps> = ({ alerts }) => {
         />
 
         <Marker position={position}>
-          <Popup>Command Center Hub</Popup>
+          <Popup>Command Center Hub • Active Cam Cone</Popup>
         </Marker>
 
         {evacuationRoutes.map((route, i) => (
@@ -111,7 +111,7 @@ export const LiveMap: React.FC<LiveMapProps> = ({ alerts }) => {
             pathOptions={{
               color: '#00ff88',
               weight: 2,
-              opacity: 0.6,
+              opacity: 0.7,
               dashArray: '6, 6',
             }}
           />
@@ -123,31 +123,43 @@ export const LiveMap: React.FC<LiveMapProps> = ({ alerts }) => {
           </Marker>
         )}
 
+        {/* Central hub boundary */}
         <Circle
           center={position}
-          pathOptions={{ color: '#00e0ff', fillColor: '#00e0ff', fillOpacity: 0.04, weight: 1 }}
+          pathOptions={{ color: '#00e0ff', fillColor: '#00e0ff', fillOpacity: 0.05, weight: 1 }}
           radius={450}
+        />
+
+        {/* Simulated Camera FOV Cone & Moving Crowd Dots */}
+        <Circle
+          center={[position[0] + 0.0015, position[1] + 0.0015]}
+          pathOptions={{ color: '#00e0ff', fillColor: '#00e0ff', fillOpacity: 0.12, weight: 1, dashArray: '4 4' }}
+          radius={220}
         />
 
         {alerts.map((alert, i) => (
           <Circle
             key={i}
             center={[alert.lat, alert.lng]}
-            pathOptions={{ color: '#ff1744', fillColor: '#ff1744', fillOpacity: 0.35, weight: 1 }}
-            radius={120}
+            pathOptions={{ color: '#ff1744', fillColor: '#ff1744', fillOpacity: 0.4, weight: 1.5 }}
+            radius={140}
           />
         ))}
       </MapContainer>
 
-      {/* Legend */}
-      <div className="absolute bottom-2.5 left-2.5 z-[400] bg-black/75 backdrop-blur-md px-2.5 py-1 rounded-lg border border-white/[0.08] text-[9px] font-mono flex items-center gap-3">
+      {/* Legend with FOV indicator */}
+      <div className="absolute bottom-2.5 left-2.5 z-[400] bg-black/80 backdrop-blur-md px-2.5 py-1 rounded-lg border border-white/[0.08] text-[9px] font-mono flex items-center gap-3 shadow-lg">
         <div className="flex items-center gap-1.5">
           <div className="w-2.5 h-0.5 bg-emerald-400" />
           <span className="text-zinc-400">EVAC ROUTE</span>
         </div>
         <div className="flex items-center gap-1.5">
+          <div className="w-2 h-2 rounded-full bg-cyan-400/80 animate-pulse" />
+          <span className="text-zinc-400">CAM FOV</span>
+        </div>
+        <div className="flex items-center gap-1.5">
           <div className="w-2 h-2 rounded-full bg-red-500/80" />
-          <span className="text-zinc-400">ALERT ZONE</span>
+          <span className="text-zinc-400">ALERT</span>
         </div>
       </div>
     </div>
