@@ -13,6 +13,35 @@ interface StatusCardsRowProps {
   avgVelocity: number;
 }
 
+// Micro-animated smooth number transition
+const AnimatedNumber: React.FC<{ value: number; decimals?: number }> = ({ value, decimals = 0 }) => {
+  const [displayValue, setDisplayValue] = React.useState(value);
+
+  React.useEffect(() => {
+    const start = displayValue;
+    const end = value;
+    if (Math.abs(start - end) < 0.001) return;
+    const duration = 350;
+    const startTime = performance.now();
+
+    const frame = (now: number) => {
+      const progress = Math.min((now - startTime) / duration, 1);
+      const eased = 1 - (1 - progress) * (1 - progress);
+      const current = start + (end - start) * eased;
+      setDisplayValue(current);
+      if (progress < 1) {
+        requestAnimationFrame(frame);
+      } else {
+        setDisplayValue(end);
+      }
+    };
+    const req = requestAnimationFrame(frame);
+    return () => cancelAnimationFrame(req);
+  }, [value]);
+
+  return <span>{decimals > 0 ? displayValue.toFixed(decimals) : Math.round(displayValue)}</span>;
+};
+
 export const StatusCardsRow: React.FC<StatusCardsRowProps> = ({
   count,
   maxCapacity,
@@ -52,12 +81,12 @@ export const StatusCardsRow: React.FC<StatusCardsRowProps> = ({
             <span className="font-['Space_Grotesk'] font-semibold text-zinc-300">PEOPLE</span>
           </div>
           <span className="text-[11px] font-mono text-zinc-400 bg-white/[0.04] px-2.5 py-0.5 rounded-full border border-white/[0.06]">
-            {capacityPct.toFixed(0)}% CAP
+            <AnimatedNumber value={capacityPct} decimals={0} />% CAP
           </span>
         </div>
         <div className="flex items-baseline gap-2 mt-1">
           <span className="text-2xl lg:text-3xl font-bold font-['Space_Grotesk'] text-white tracking-tight">
-            {count}
+            <AnimatedNumber value={count} decimals={0} />
           </span>
           <span className="text-xs font-mono text-zinc-500">/ {maxCapacity}</span>
         </div>
@@ -76,7 +105,7 @@ export const StatusCardsRow: React.FC<StatusCardsRowProps> = ({
         </div>
         <div className="flex items-baseline gap-2 mt-1">
           <span className="text-2xl lg:text-3xl font-bold font-['Space_Grotesk'] text-white tracking-tight">
-            {density.toFixed(2)}
+            <AnimatedNumber value={density} decimals={2} />
           </span>
           <span className="text-xs font-mono text-zinc-500">idx</span>
         </div>
@@ -99,7 +128,7 @@ export const StatusCardsRow: React.FC<StatusCardsRowProps> = ({
         <div className="flex items-center justify-between mt-1">
           <div className="flex items-baseline gap-1">
             <span className="text-2xl lg:text-3xl font-bold font-['Space_Grotesk'] text-white tracking-tight">
-              {stampedeRisk.toFixed(0)}
+              <AnimatedNumber value={stampedeRisk} decimals={0} />
             </span>
             <span className="text-xs font-mono text-zinc-500">/ 100</span>
           </div>
@@ -147,7 +176,7 @@ export const StatusCardsRow: React.FC<StatusCardsRowProps> = ({
         </div>
         <div className="flex items-baseline gap-2 mt-1">
           <span className="text-2xl lg:text-3xl font-bold font-['Space_Grotesk'] text-white tracking-tight">
-            {wifiProbeCount}
+            <AnimatedNumber value={wifiProbeCount} decimals={0} />
           </span>
           <span className="text-xs font-mono text-zinc-500">probed</span>
         </div>
@@ -169,7 +198,7 @@ export const StatusCardsRow: React.FC<StatusCardsRowProps> = ({
         </div>
         <div className="flex items-baseline gap-2 mt-1">
           <span className="text-2xl lg:text-3xl font-bold font-['Space_Grotesk'] text-white tracking-tight">
-            {(avgVelocity / 25).toFixed(1)}
+            <AnimatedNumber value={avgVelocity / 25} decimals={1} />
           </span>
           <span className="text-xs font-mono text-zinc-500">m/s</span>
         </div>

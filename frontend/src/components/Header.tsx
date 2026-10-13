@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Activity, Cpu, Clock, Signal, Siren, Volume2, VolumeX } from 'lucide-react';
+import { Activity, Cpu, Clock, Signal, Siren, Volume2, VolumeX, FolderLock } from 'lucide-react';
 
 interface HeaderProps {
   status: string;
@@ -10,6 +10,7 @@ interface HeaderProps {
   onToggleSos?: () => void;
   soundEnabled?: boolean;
   onToggleSound?: () => void;
+  onOpenLocker?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -21,6 +22,7 @@ export const Header: React.FC<HeaderProps> = ({
   onToggleSos,
   soundEnabled = true,
   onToggleSound,
+  onOpenLocker,
 }) => {
   const [time, setTime] = useState(new Date());
   const [cpuUsage, setCpuUsage] = useState(16);
@@ -101,6 +103,18 @@ export const Header: React.FC<HeaderProps> = ({
           <Clock size={12} className="text-zinc-500" />
           <span>{time.toLocaleTimeString()}</span>
         </div>
+
+        {/* Evidence Vault Button */}
+        {onOpenLocker && (
+          <button
+            onClick={onOpenLocker}
+            className="btn-icon-soc gap-1.5 px-2.5 text-xs font-mono hover:text-cyan-300"
+            title="Open Secure Evidence Vault"
+          >
+            <FolderLock size={14} className="text-cyan-400" />
+            <span className="hidden xl:inline text-[10px]">VAULT</span>
+          </button>
+        )}
 
         {/* Audio Toggle */}
         {onToggleSound && (

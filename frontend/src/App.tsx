@@ -404,6 +404,10 @@ function App() {
         onToggleSos={() => setSosMode(!sosMode)}
         soundEnabled={soundEnabled}
         onToggleSound={() => setSoundEnabled(!soundEnabled)}
+        onOpenLocker={() => {
+          setLockerOpen(true);
+          fetchRecordings();
+        }}
       />
 
       {/* ── Main Viewport Container ── */}
