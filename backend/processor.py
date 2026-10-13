@@ -18,6 +18,7 @@ import torch
 from ultralytics import YOLO
 
 from analysis import DensityAnalyzer
+from hardware import esp32_manager, SensorFusionEngine
 
 BASE_DIR = Path(__file__).resolve().parent
 RECORDINGS_DIR = BASE_DIR / "recordings"
@@ -70,6 +71,7 @@ class VideoProcessor:
         print(f"[CrowdPulse] {model_name} warmed up on {self.device}")
 
         self.analyzer: DensityAnalyzer = DensityAnalyzer()
+        self.fusion_engine: SensorFusionEngine = SensorFusionEngine()
         self.latest_data: Optional[dict[str, Any]] = None
         self.lock: threading.Lock = threading.Lock()
         self.heatmap_mode: bool = False
@@ -530,6 +532,11 @@ class VideoProcessor:
                                     "severity": "WARNING", "message": "Crowd density approaching threshold."
                                 }
 
+                    # ── Multi-Sensor Hardware Fusion ──────────────────────────────
+                    hw_state = esp32_manager.get_hardware_state()
+                    analysis_result, hw_state, _ = self.fusion_engine.fuse(analysis_result, hw_state)
+                    esp32_manager.set_actuators(hw_state.buzzer_state, hw_state.led_state)
+
                     frame_data = analysis_result
 
                 except Exception:
@@ -592,6 +599,12 @@ class VideoProcessor:
                 analysis_result_sim['mode'] = 'THERMAL' if self.heatmap_mode else 'OPTICAL'
                 analysis_result_sim['fps'] = 30.0
                 analysis_result_sim['wifi_zones'] = {}
+
+                # ── Multi-Sensor Hardware Fusion (Simulation) ─────────────────
+                hw_state = esp32_manager.get_hardware_state()
+                analysis_result_sim, hw_state, _ = self.fusion_engine.fuse(analysis_result_sim, hw_state)
+                esp32_manager.set_actuators(hw_state.buzzer_state, hw_state.led_state)
+
                 frame_data = analysis_result_sim
                 frame_count = frame_count + 1  # pyre-ignore
                 time.sleep(0.033)

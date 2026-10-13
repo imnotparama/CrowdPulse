@@ -15,6 +15,13 @@ CrowdPulse/
 │   ├── main.py                         # FastAPI server, WebSocket broker, ESP32 API endpoints
 │   ├── processor.py                    # VideoProcessor engine (YOLO, optical flow, frame pipeline)
 │   ├── analysis.py                     # DensityAnalyzer (mathematical models, risk formulas)
+│   ├── hardware/                       # Physical Hardware Subsystem (ESP32-S3 IoT Node)
+│   │   ├── __init__.py                 # Subsystem exports & package definitions
+│   │   ├── hardware_models.py          # Pydantic telemetry, actuator & fusion schemas
+│   │   ├── sensor_processor.py         # INMP441, AM2302 & PIR DSP algorithms
+│   │   ├── sensor_fusion.py            # Dynamic weighting, threat scoring & false positive reduction
+│   │   ├── esp32_manager.py            # Async packet ingestion, state cache & simulated fallback
+│   │   └── hardware_api.py             # FastAPI APIRouters for /api/hardware and /api/esp32
 │   ├── requirements.txt                # Python dependencies (fastapi, uvicorn, opencv, torch, etc.)
 │   ├── recordings/                     # Output directory for WebM/MP4 evidence captures
 │   ├── videos/                         # Local video files used for simulation/testing
@@ -35,6 +42,7 @@ CrowdPulse/
             ├── VideoFeed.tsx           # Hero 70% camera viewport, thumbnail tabs, rich HUD overlays
             ├── StatusCardsRow.tsx      # Top Level-2 KPI cards with AnimatedNumber transitions
             ├── LiveStatusPanel.tsx     # Left Level-2 scannable status metrics
+            ├── HardwareSensorWidget.tsx # Left Level-2 ESP32-S3 sensor vitals & actuator monitor
             ├── AIInsightsCard.tsx      # Left Level-1 AI narrative, Predictive Mode (+3m/+5m/+10m)
             ├── RecentEvents.tsx        # Left Level-3 chronological operational event feed
             ├── Timeline.tsx            # Center Level-3 timeline with Crowd Replay Scrubber Mode
@@ -168,6 +176,67 @@ Implements the crowd dynamics formulas and predictive mathematical models.
 6. **Sector Quadrant Analysis (`_analyze_sectors()`):**
    - Splits camera bounds into quadrants: NW, NE, SW, SE based on $(\text{mid}_x, \text{mid}_y)$.
    - Counts persons per sector and marks $\text{CRITICAL}$ if count $> 15$, $\text{WARNING}$ if count $> 8$.
+
+---
+
+### 2.4 Physical Hardware Subsystem & Multi-Sensor Fusion (`backend/hardware/`)
+The hardware subsystem integrates physical edge IoT telemetry (ESP32-S3) with computer vision to create a multi-sensor crowd intelligence platform. The camera remains the PRIMARY source (nominal 70% weighting), while hardware provides physical redundancy, acoustic validation, and false-positive suppression.
+
+#### Physical Sensors & Actuators:
+1. **ESP32-S3 IoT Node**: Dual-core Xtensa LX7 processor communicating continuously with FastAPI over Wi-Fi.
+2. **INMP441 Digital MEMS Microphone**: I2S 24-bit audio interface measuring ambient sound pressure level in decibels ($40$–$110$ dB).
+3. **AM2302 (DHT22) Sensor**: High-accuracy digital temperature ($-40$ to $+80$°C) and relative humidity ($0$–$100$% RH).
+4. **PIR Motion Sensor**: Digital passive infrared kinematic motion trigger detecting physical movement in node proximity.
+5. **Active Buzzer**: Controlled actuator triggered exclusively during multi-sensor confirmed `CRITICAL` stampede hazards.
+6. **RGB Status LED**: Hardware tri-color visual indicator (`GREEN` = Normal, `YELLOW` = Warning/Elevated, `RED` = Critical).
+
+#### Modules & Methods:
+
+1. **`hardware_models.py`**:
+   - `ESP32TelemetryPacket`: Typed Pydantic model for incoming JSON packets: `temperature` (float), `humidity` (float), `noise_db` (float), `motion` (bool), `device_id` (str), `timestamp` (float).
+   - `ActuatorControl`: Actuator response model dispatched back to ESP32: `buzzer` (bool), `led_color` (`"GREEN" | "YELLOW" | "RED" | "OFF"`).
+   - `HardwareState`: Internal normalized hardware state including `heat_stress_index`, `noise_index`, `motion_activity_score`, `sensor_score`, `sensor_health` (`OPTIMAL | DEGRADED | OFFLINE`), `hardware_status` (`CONNECTED | TIMEOUT | SIMULATED`), `latency_ms`.
+   - `FusionResult`: Fused multi-modal evaluation outputting `fusion_confidence`, `environment_risk`, `combined_threat_score`, `threat_level`, `vision_weight`, `hardware_weight`, `fusion_narrative`, `crowd_alert`.
+
+2. **`sensor_processor.py` (`SensorProcessor`)**:
+   - `calculate_heat_stress_index(temp, humidity)`: Calculates Steadman Heat Stress Index formula:
+     $$\text{heat\_idx} = -8.784695 + 1.61139411 \cdot T + 2.338549 \cdot H - 0.14611605 \cdot T \cdot H - 0.012308094 \cdot T^2 - 0.016424828 \cdot H^2 + \dots$$
+   - `normalize_noise_db(noise_db)`: Scales acoustic decibel reading into normalized range $[0, 100]$:
+     $$\text{noise\_index} = \max\left(0.0, \min\left(100.0, \frac{\text{noise\_db} - 55.0}{40.0} \times 100\right)\right)$$
+   - `update_motion_history(motion_detected)`: Rolling window of trailing 30 samples computing duty cycle activity percentage.
+   - `evaluate_sensor_health(packet)`: Validates physical limits (temp $-20$ to $65$, humidity $0$–$100$, noise $30$–$120$). Returns `OPTIMAL`, `DEGRADED`, or `OFFLINE`.
+   - `process_telemetry(packet, latency_ms)`: Combines all DSP steps into updated `HardwareState`.
+
+3. **`sensor_fusion.py` (`SensorFusionEngine`)**:
+   - `calculate_weights(fps, hardware_state)`: Dynamic weighting calculation:
+     - Baseline: Vision $W_V = 0.70$, Hardware $W_H = 0.30$.
+     - Hardware Offline / Timeout: $W_V = 1.0$, $W_H = 0.0$.
+     - Camera Degraded ($FPS < 15$): Shifts dynamically to $W_V = 0.40, W_H = 0.60$.
+     - Hardware Degraded: $W_V = 0.85, W_H = 0.15$.
+   - `evaluate_false_positive_reduction(density, stampede_risk, noise_idx, motion_score, motion_detected)`:
+     Implements multi-sensor convergence matrix:
+     - High Density ($>0.4$) + High Noise ($>70$) + Motion Detected $\rightarrow$ **High Confidence Alert (Confirmed)**.
+     - High Density only ($>0.4$), normal acoustic $\rightarrow$ **Monitor Only (Warning)**.
+     - High Noise only ($>70$), normal density $\rightarrow$ **Monitor Only (Excitement / Event sound)**.
+     - PIR Motion only, normal density $\rightarrow$ **Ignore / Nominal (Localized passage)**.
+   - `fuse(vision_data, hardware_state)`: Computes:
+     $$\text{EnvRisk} = 0.50 \cdot \text{heat\_stress\_index} + 0.50 \cdot \text{noise\_index}$$
+     $$\text{HwScore} = 0.40 \cdot \text{noise\_index} + 0.35 \cdot \text{motion\_activity} + 0.25 \cdot \text{heat\_stress}$$
+     $$\text{CombinedScore} = W_V \cdot \text{stampede\_risk} + W_H \cdot \text{HwScore}$$
+     Smooths output with exponential moving average ($0.80 \cdot \text{prev} + 0.20 \cdot \text{current}$), sets actuator states (Buzzer=ON only for CRITICAL, LED=Green/Yellow/Red), generates AI narrative, and injects all fields into `vision_data`.
+
+4. **`esp32_manager.py` (`ESP32Manager`)**:
+   - Ingests raw telemetry packets thread-safely via `threading.Lock`.
+   - Tracks packet reception timestamp; triggers `TIMEOUT` status if no packet arrives within 10 seconds.
+   - Implements high-fidelity fallback simulator when physical hardware is not broadcasting: realistic diurnal temperature drift, ambient acoustics, simulated PIR kinematic pulses.
+   - Dispatches actuator commands (`buzzer`, `led`) back to ESP32 on subsequent telemetry HTTP POST or actuator polling.
+
+5. **`hardware_api.py`**:
+   - `POST /api/hardware/telemetry`: ESP32 continuously POSTs JSON telemetry packets; receives immediate actuator control JSON response: `{"status": "ok", "actuators": {"buzzer": false, "led_color": "GREEN"}}`.
+   - `GET /api/hardware/status`: Returns comprehensive node telemetry, health status, and actuator states.
+   - `GET /api/hardware/actuators`: Returns current buzzer and RGB LED status for ESP32 polling.
+   - `POST /api/hardware/actuators`: Manual SOC actuator override endpoint.
+   - `POST /api/esp32`: Backward-compatible alias for existing ESP32 firmware flashes.
 
 ---
 
@@ -372,7 +441,24 @@ Cryptographic modal for reviewing and exporting captured security video sessions
     "ZONE_A": { "count": 9, "rssi": -68.0, "status": "ACTIVE" }
   },
   "fps": 30.0,
-  "crowd_alert": null
+  "crowd_alert": null,
+  "temperature": 24.5,
+  "humidity": 52.0,
+  "noise_db": 58.0,
+  "motion_detected": false,
+  "sensor_health": "OPTIMAL",
+  "sensor_timestamp": 1729000000.120,
+  "buzzer_state": false,
+  "led_state": "GREEN",
+  "hardware_status": "CONNECTED",
+  "environment_risk": 18.0,
+  "fusion_confidence": 0.94,
+  "sensor_score": 22.0,
+  "heat_stress_index": 24.8,
+  "noise_index": 28.0,
+  "motion_activity_score": 15.0,
+  "combined_threat_score": 20.0,
+  "fusion_narrative": "Nominal conditions across all visual and environmental channels."
 }
 ```
 

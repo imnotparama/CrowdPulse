@@ -6,6 +6,8 @@ interface AIInsightsCardProps {
   stampedeRisk: number;
   timeToCritical: number;
   status: string;
+  fusionNarrative?: string;
+  fusionConfidence?: number;
 }
 
 export const AIInsightsCard: React.FC<AIInsightsCardProps> = ({
@@ -13,6 +15,8 @@ export const AIInsightsCard: React.FC<AIInsightsCardProps> = ({
   stampedeRisk,
   timeToCritical,
   status,
+  fusionNarrative,
+  fusionConfidence,
 }) => {
   const [forecastHorizon, setForecastHorizon] = useState<'+3m' | '+5m' | '+10m'>('+5m');
 
@@ -45,35 +49,41 @@ export const AIInsightsCard: React.FC<AIInsightsCardProps> = ({
   const forecast = getForecastData();
 
   const getInsights = () => {
+    const calculatedConfidence =
+      fusionConfidence !== undefined ? `${(fusionConfidence * 100).toFixed(1)}%` : '94.8%';
+
     if (status === 'CRITICAL' || stampedeRisk > 70) {
       return {
         narrative:
+          fusionNarrative ||
           'Critical density anomaly detected in Sector North. Walking velocity dropped 34% over 90 seconds, indicating severe bottleneck formation.',
         recommendation: 'Pre-emptively open Gate B and divert incoming flow to Exit Corridors 1 & 3.',
         reductionImpact: '42% congestion drop',
         exitTime: '3m 45s (delayed)',
-        confidence: '98.2%',
+        confidence: calculatedConfidence,
         isAlert: true,
       };
     }
     if (status === 'WARNING' || density > 0.3) {
       return {
         narrative:
+          fusionNarrative ||
           'Queue pressure building near central choke point. Walking velocity decelerating by 14% as inflow outpaces clearance rate.',
         recommendation: 'Deploy secondary turnstiles at Gate A to equalize flow with Exit 2.',
         reductionImpact: '28% congestion drop',
         exitTime: '2m 10s',
-        confidence: '96.5%',
+        confidence: calculatedConfidence,
         isAlert: true,
       };
     }
     return {
       narrative:
-        'Current crowd occupancy is 18%. Average walking speed increased 12% over the last minute. Flow vectors show smooth clearance toward main exits.',
+        fusionNarrative ||
+        'Current crowd occupancy is nominal. Flow vectors show smooth clearance toward main exits.',
       recommendation: 'Continue nominal surveillance. All sector capacities operating safely below 40% threshold.',
       reductionImpact: 'Optimal throughput',
       exitTime: '1m 12s',
-      confidence: '94.8%',
+      confidence: calculatedConfidence,
       isAlert: false,
     };
   };

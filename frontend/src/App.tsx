@@ -15,6 +15,7 @@ import ActiveAlertsPanel from './components/ActiveAlertsPanel';
 import AIChatSidebar from './components/AIChatSidebar';
 import EvidenceLocker from './components/EvidenceLocker';
 import SplashScreen from './components/SplashScreen';
+import HardwareSensorWidget from './components/HardwareSensorWidget';
 
 interface WifiZone {
   count: number;
@@ -65,6 +66,24 @@ function App() {
     sectors: [] as { name: string; count: number; status: string }[],
     wifi_probe_count: 9,
     wifi_zones: {} as Record<string, WifiZone>,
+    // Hardware layer
+    temperature: 24.5,
+    humidity: 52.0,
+    noise_db: 58.0,
+    motion_detected: false,
+    sensor_health: 'OPTIMAL' as 'OPTIMAL' | 'DEGRADED' | 'OFFLINE',
+    sensor_timestamp: Date.now(),
+    buzzer_state: false,
+    led_state: 'GREEN' as 'GREEN' | 'YELLOW' | 'RED',
+    hardware_status: 'SIMULATED' as 'CONNECTED' | 'TIMEOUT' | 'SIMULATED',
+    environment_risk: 18.0,
+    fusion_confidence: 0.94,
+    sensor_score: 22.0,
+    heat_stress_index: 24.8,
+    noise_index: 28.0,
+    motion_activity_score: 15.0,
+    combined_threat_score: 20.0,
+    fusion_narrative: 'Nominal conditions across all visual and environmental channels.',
   });
 
   const [history, setHistory] = useState<
@@ -281,6 +300,23 @@ function App() {
           sectors: data.sectors || prev.sectors,
           wifi_probe_count: data.wifi_probe_count ?? prev.wifi_probe_count,
           wifi_zones: data.wifi_zones || prev.wifi_zones,
+          temperature: data.temperature ?? prev.temperature,
+          humidity: data.humidity ?? prev.humidity,
+          noise_db: data.noise_db ?? prev.noise_db,
+          motion_detected: data.motion_detected ?? prev.motion_detected,
+          sensor_health: data.sensor_health ?? prev.sensor_health,
+          sensor_timestamp: data.sensor_timestamp ?? prev.sensor_timestamp,
+          buzzer_state: data.buzzer_state ?? prev.buzzer_state,
+          led_state: data.led_state ?? prev.led_state,
+          hardware_status: data.hardware_status ?? prev.hardware_status,
+          environment_risk: data.environment_risk ?? prev.environment_risk,
+          fusion_confidence: data.fusion_confidence ?? prev.fusion_confidence,
+          sensor_score: data.sensor_score ?? prev.sensor_score,
+          heat_stress_index: data.heat_stress_index ?? prev.heat_stress_index,
+          noise_index: data.noise_index ?? prev.noise_index,
+          motion_activity_score: data.motion_activity_score ?? prev.motion_activity_score,
+          combined_threat_score: data.combined_threat_score ?? prev.combined_threat_score,
+          fusion_narrative: data.fusion_narrative ?? prev.fusion_narrative,
         };
       });
 
@@ -423,11 +459,18 @@ function App() {
           wifiProbeCount={stats.wifi_probe_count}
           activeWifiZones={activeWifiZones}
           avgVelocity={stats.avg_velocity}
+          temperature={stats.temperature}
+          humidity={stats.humidity}
+          noiseDb={stats.noise_db}
+          motionDetected={stats.motion_detected}
+          fusionConfidence={stats.fusion_confidence}
+          sensorStatus={stats.sensor_health}
+          hardwareStatus={stats.hardware_status}
         />
 
         {/* ── Three-Column Main Layout: Left (~280px) | Center Hero (~70% flex-1) | Right (~310px) ── */}
         <div className="flex flex-col lg:flex-row gap-3.5 flex-1 min-h-0">
-          {/* ── LEFT COLUMN: Scannable Live Status, AI Insights (Level 1), Recent Events ── */}
+          {/* ── LEFT COLUMN: Scannable Live Status, Hardware IoT Node, AI Insights (Level 1), Recent Events ── */}
           <div className="w-full lg:w-[280px] xl:w-[300px] flex-shrink-0 flex flex-col gap-3">
             <LiveStatusPanel
               count={stats.count}
@@ -437,6 +480,26 @@ function App() {
               wifiProbeCount={stats.wifi_probe_count}
               avgVelocity={stats.avg_velocity}
               status={stats.status}
+              temperature={stats.temperature}
+              humidity={stats.humidity}
+              noiseDb={stats.noise_db}
+            />
+
+            <HardwareSensorWidget
+              temperature={stats.temperature}
+              humidity={stats.humidity}
+              noiseDb={stats.noise_db}
+              noiseIndex={stats.noise_index}
+              motionDetected={stats.motion_detected}
+              motionActivityScore={stats.motion_activity_score}
+              sensorHealth={stats.sensor_health}
+              hardwareStatus={stats.hardware_status}
+              buzzerState={stats.buzzer_state}
+              ledState={stats.led_state}
+              environmentRisk={stats.environment_risk}
+              fusionConfidence={stats.fusion_confidence}
+              sensorScore={stats.sensor_score}
+              heatStressIndex={stats.heat_stress_index}
             />
 
             <AIInsightsCard
@@ -444,6 +507,8 @@ function App() {
               stampedeRisk={stats.stampede_risk}
               timeToCritical={stats.time_to_critical}
               status={stats.status}
+              fusionNarrative={stats.fusion_narrative}
+              fusionConfidence={stats.fusion_confidence}
             />
 
             <RecentEvents events={recentEvents} />
@@ -478,7 +543,12 @@ function App() {
           {/* ── RIGHT COLUMN: Mini Analytics, Semicircle Risk, Tactical Map, Active Alerts, Assistant ── */}
           <div className="w-full lg:w-[290px] xl:w-[320px] flex-shrink-0 flex flex-col gap-3">
             {/* Semicircle Risk Gauge */}
-            <RiskGauge risk={stats.stampede_risk} status={stats.status} />
+            <RiskGauge
+              risk={stats.stampede_risk}
+              status={stats.status}
+              environmentRisk={stats.environment_risk}
+              combinedThreatScore={stats.combined_threat_score}
+            />
 
             {/* Active Alerts Panel */}
             <ActiveAlertsPanel activeAlert={persistentAlert} alertHistory={alertHistory} />

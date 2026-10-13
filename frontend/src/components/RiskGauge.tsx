@@ -4,10 +4,18 @@ import { ShieldCheck, AlertTriangle, ShieldAlert } from 'lucide-react';
 interface RiskGaugeProps {
   risk: number;
   status: string;
+  environmentRisk?: number;
+  combinedThreatScore?: number;
 }
 
-export const RiskGauge: React.FC<RiskGaugeProps> = ({ risk, status }) => {
-  const clampedRisk = Math.min(Math.max(risk, 0), 100);
+export const RiskGauge: React.FC<RiskGaugeProps> = ({
+  risk,
+  status,
+  environmentRisk,
+  combinedThreatScore,
+}) => {
+  const activeRisk = combinedThreatScore !== undefined ? combinedThreatScore : risk;
+  const clampedRisk = Math.min(Math.max(activeRisk, 0), 100);
 
   const getTheme = () => {
     if (clampedRisk > 70) {
@@ -110,31 +118,39 @@ export const RiskGauge: React.FC<RiskGaugeProps> = ({ risk, status }) => {
             <span className="text-xs font-mono text-zinc-400 font-bold">%</span>
           </div>
           <span className="text-[9px] font-mono text-zinc-500 uppercase tracking-wider">
-            STAMPEDE RISK
+            {combinedThreatScore !== undefined ? 'FUSED THREAT' : 'STAMPEDE RISK'}
           </span>
         </div>
       </div>
 
       {/* Segmented Sub-indicators */}
-      <div className="w-full grid grid-cols-3 gap-1.5 pt-2 border-t border-white/[0.05] text-center">
-        <div className="bg-white/[0.02] py-1 px-1.5 rounded-lg border border-white/[0.03]">
-          <div className="text-[9px] font-mono text-zinc-500">DENSITY</div>
+      <div className={`w-full grid ${environmentRisk !== undefined ? 'grid-cols-4' : 'grid-cols-3'} gap-1.5 pt-2 border-t border-white/[0.05] text-center`}>
+        <div className="bg-white/[0.02] py-1 px-1 rounded-lg border border-white/[0.03]">
+          <div className="text-[8px] font-mono text-zinc-500">DENSITY</div>
           <div className="text-xs font-mono font-bold text-zinc-200">
             {(clampedRisk * 0.4).toFixed(0)}%
           </div>
         </div>
-        <div className="bg-white/[0.02] py-1 px-1.5 rounded-lg border border-white/[0.03]">
-          <div className="text-[9px] font-mono text-zinc-500">PRESSURE</div>
+        <div className="bg-white/[0.02] py-1 px-1 rounded-lg border border-white/[0.03]">
+          <div className="text-[8px] font-mono text-zinc-500">PRESSURE</div>
           <div className="text-xs font-mono font-bold text-zinc-200">
             {(clampedRisk * 0.35).toFixed(0)}%
           </div>
         </div>
-        <div className="bg-white/[0.02] py-1 px-1.5 rounded-lg border border-white/[0.03]">
-          <div className="text-[9px] font-mono text-zinc-500">AGITATION</div>
+        <div className="bg-white/[0.02] py-1 px-1 rounded-lg border border-white/[0.03]">
+          <div className="text-[8px] font-mono text-zinc-500">AGITATION</div>
           <div className="text-xs font-mono font-bold text-zinc-200">
             {(clampedRisk * 0.25).toFixed(0)}%
           </div>
         </div>
+        {environmentRisk !== undefined && (
+          <div className="bg-white/[0.02] py-1 px-1 rounded-lg border border-white/[0.03]">
+            <div className="text-[8px] font-mono text-cyan-400">ENV RISK</div>
+            <div className="text-xs font-mono font-bold text-cyan-300">
+              {environmentRisk.toFixed(0)}%
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

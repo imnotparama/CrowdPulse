@@ -13,6 +13,8 @@ import json
 import time
 
 from processor import VideoProcessor
+from hardware.hardware_api import router as hardware_router, esp32_alias_router
+from hardware.esp32_manager import esp32_manager
 
 BASE_DIR = Path(__file__).resolve().parent
 RECORDINGS_DIR = BASE_DIR / "recordings"
@@ -35,6 +37,10 @@ async def lifespan(app: FastAPI):
 
 
 app: FastAPI = FastAPI(lifespan=lifespan)
+
+# Mount Hardware IoT Routers
+app.include_router(hardware_router)
+app.include_router(esp32_alias_router)
 
 # Enable CORS
 app.add_middleware(
@@ -70,6 +76,8 @@ async def get_status() -> dict[str, Any]:
         if now_ts - z.get("timestamp", 0) <= 10
     )
 
+    hw_state = esp32_manager.get_hardware_state()
+
     return {
         "uptime_seconds": uptime,
         "model": "YOLOv8m",
@@ -77,7 +85,11 @@ async def get_status() -> dict[str, Any]:
         "ws_clients": 1,
         "recording": processor.is_recording,
         "mode": "THERMAL" if processor.heatmap_mode else "OPTICAL",
-        "active_wifi_zones": active_zones
+        "active_wifi_zones": active_zones,
+        "hardware_status": hw_state.hardware_status,
+        "sensor_health": hw_state.sensor_health,
+        "temperature": hw_state.temperature,
+        "noise_db": hw_state.noise_db
     }
 
 

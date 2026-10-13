@@ -1,5 +1,5 @@
 import React from 'react';
-import { Users, AlertTriangle, Shield, Smartphone, Gauge } from 'lucide-react';
+import { Users, AlertTriangle, Shield, Smartphone, Gauge, Mic, Thermometer } from 'lucide-react';
 
 interface LiveStatusPanelProps {
   count: number;
@@ -9,6 +9,9 @@ interface LiveStatusPanelProps {
   wifiProbeCount: number;
   avgVelocity: number;
   status: string;
+  temperature?: number;
+  humidity?: number;
+  noiseDb?: number;
 }
 
 export const LiveStatusPanel: React.FC<LiveStatusPanelProps> = ({
@@ -19,6 +22,9 @@ export const LiveStatusPanel: React.FC<LiveStatusPanelProps> = ({
   wifiProbeCount,
   avgVelocity,
   status,
+  temperature,
+  humidity,
+  noiseDb,
 }) => {
   const getDensityText = (val: number) => {
     if (val > 0.5) return 'Critical';
@@ -69,6 +75,28 @@ export const LiveStatusPanel: React.FC<LiveStatusPanelProps> = ({
       subtext: 'Paced pedestrian flow',
       color: 'text-zinc-100',
     },
+    ...(noiseDb !== undefined
+      ? [
+          {
+            icon: Mic,
+            label: 'Acoustics',
+            value: `${noiseDb.toFixed(0)} dB`,
+            subtext: noiseDb > 80 ? 'Elevated noise spike' : 'INMP441 MEMS baseline',
+            color: noiseDb > 80 ? 'text-amber-400' : 'text-zinc-100',
+          },
+        ]
+      : []),
+    ...(temperature !== undefined && humidity !== undefined
+      ? [
+          {
+            icon: Thermometer,
+            label: 'Environment',
+            value: `${temperature.toFixed(1)}°C`,
+            subtext: `${humidity.toFixed(0)}% RH (AM2302)`,
+            color: temperature > 32 ? 'text-rose-400' : 'text-zinc-100',
+          },
+        ]
+      : []),
   ];
 
   return (

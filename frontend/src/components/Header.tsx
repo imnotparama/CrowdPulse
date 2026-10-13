@@ -50,15 +50,15 @@ export const Header: React.FC<HeaderProps> = ({
               Crowd<span className="text-red-500">Pulse</span>
             </span>
             <span className="text-[9px] font-mono font-bold uppercase tracking-wider text-cyan-400 bg-cyan-500/10 px-2 py-0.5 rounded-full border border-cyan-500/25 shadow-[0_0_10px_rgba(0,224,255,0.15)]">
-              ENTERPRISE v4.0
+              ENTERPRISE v4.1
             </span>
             <span className="hidden md:inline-flex items-center gap-1 text-[9px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/25">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              AI INFERENCE ENGINE
+              AI FUSION ENGINE
             </span>
           </div>
           <p className="text-[10px] text-zinc-400 font-sans hidden sm:block">
-            Autonomous Crowd Intelligence & Edge Surveillance System
+            Autonomous Crowd Intelligence & Multi-Sensor Edge Platform
           </p>
         </div>
       </div>
@@ -75,10 +75,15 @@ export const Header: React.FC<HeaderProps> = ({
         </span>
         <span className="text-zinc-600">|</span>
         <span className="text-zinc-400">5 FEEDS</span>
+        <span className="text-zinc-600">|</span>
+        <span className="flex items-center gap-1 text-cyan-400">
+          <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
+          ESP32-S3 IoT
+        </span>
         {activeWifiZones > 0 && (
           <>
             <span className="text-zinc-600">|</span>
-            <span className="text-cyan-400">{activeWifiZones} SENSORS</span>
+            <span className="text-cyan-400">{activeWifiZones} ZONES</span>
           </>
         )}
       </div>
