@@ -93,43 +93,52 @@ export const AIInsightsCard: React.FC<AIInsightsCardProps> = ({
   return (
     <div className="card-level-1 p-4 flex flex-col gap-3 relative overflow-hidden group">
       {/* Top cyan accent line */}
-      <div className="absolute top-0 inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-cyan-400/60 to-transparent" />
+      <div className="absolute top-0 inset-x-0 h-[2px] bg-gradient-to-r from-transparent via-cyan-400 to-transparent shadow-[0_0_8px_rgba(0,224,255,0.4)]" />
 
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <div className="w-6 h-6 rounded-lg bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-400 shadow-[0_0_10px_rgba(0,224,255,0.2)]">
-            <Sparkles size={13} />
+          <div className="w-6 h-6 rounded-lg bg-cyan-500/15 border border-cyan-500/30 flex items-center justify-center text-cyan-400 shadow-[0_0_12px_rgba(0,224,255,0.25)]">
+            <Sparkles size={13} className="animate-spin-slow" />
           </div>
-          <h3 className="text-xs font-bold tracking-wider text-white uppercase font-['Space_Grotesk']">
-            AI Operational Insights
-          </h3>
+          <div>
+            <h3 className="text-xs font-bold tracking-wider text-white uppercase font-['Space_Grotesk']">
+              AI Operational Insights
+            </h3>
+          </div>
         </div>
-        <span className="pill-glowing-safe text-[9px] py-0.5 px-2">
-          CONFIDENCE {insight.confidence}
-        </span>
+        <div className="flex items-center gap-1.5">
+          <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
+          <span className="pill-glowing-safe text-[9px] py-0.5 px-2">
+            CONFIDENCE {insight.confidence}
+          </span>
+        </div>
       </div>
 
-      {/* Narrative */}
-      <div className="text-xs text-zinc-300 font-sans leading-relaxed bg-white/[0.02] p-2.5 rounded-lg border border-white/[0.04]">
+      {/* Narrative with Tactical Reticle Accent */}
+      <div className="relative text-xs text-zinc-300 font-sans leading-relaxed bg-white/[0.02] p-2.5 rounded-lg border border-white/[0.06] group-hover:border-cyan-500/20 transition-colors">
+        <div className="absolute top-0 left-0 w-1.5 h-1.5 border-t border-l border-cyan-400/50" />
+        <div className="absolute top-0 right-0 w-1.5 h-1.5 border-t border-r border-cyan-400/50" />
+        <div className="absolute bottom-0 left-0 w-1.5 h-1.5 border-b border-l border-cyan-400/50" />
+        <div className="absolute bottom-0 right-0 w-1.5 h-1.5 border-b border-r border-cyan-400/50" />
         {insight.narrative}
       </div>
 
       {/* ── Predictive Mode Horizon Switcher (Killer Feature) ── */}
-      <div className="bg-black/40 p-2.5 rounded-xl border border-white/[0.06] flex flex-col gap-2">
+      <div className="bg-black/50 p-2.5 rounded-xl border border-white/[0.08] flex flex-col gap-2 relative overflow-hidden">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1.5 text-[10px] font-mono text-cyan-400">
-            <TrendingUp size={12} />
-            <span className="font-semibold uppercase tracking-wider">Predictive Mode (Future Crowd)</span>
+            <TrendingUp size={12} className="animate-pulse" />
+            <span className="font-semibold uppercase tracking-wider">Predictive Horizon</span>
           </div>
-          <div className="flex items-center gap-1 bg-white/[0.04] p-0.5 rounded-lg border border-white/[0.06]">
+          <div className="flex items-center gap-1 bg-white/[0.04] p-0.5 rounded-lg border border-white/[0.08]">
             {(['+3m', '+5m', '+10m'] as const).map((horizon) => (
               <button
                 key={horizon}
                 onClick={() => setForecastHorizon(horizon)}
-                className={`px-2 py-0.5 rounded text-[9px] font-mono font-bold transition-all ${
+                className={`px-2.5 py-0.5 rounded text-[9px] font-mono font-bold transition-all ${
                   forecastHorizon === horizon
-                    ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-sm'
+                    ? 'bg-cyan-500/25 text-cyan-300 border border-cyan-400/60 shadow-[0_0_8px_rgba(0,224,255,0.2)]'
                     : 'text-zinc-400 hover:text-zinc-200'
                 }`}
               >
@@ -141,7 +150,7 @@ export const AIInsightsCard: React.FC<AIInsightsCardProps> = ({
 
         <div className="flex items-baseline justify-between pt-1">
           <div className="text-[11px] text-zinc-400 font-sans">
-            Predicted Occupancy in <span className="text-zinc-200 font-mono font-bold">{forecast.time}</span>:
+            Forecast Occupancy in <span className="text-zinc-200 font-mono font-bold">{forecast.time}</span>:
           </div>
           <div className="flex items-baseline gap-1.5">
             <span className="text-base font-bold font-['Space_Grotesk'] text-cyan-400">
@@ -152,11 +161,19 @@ export const AIInsightsCard: React.FC<AIInsightsCardProps> = ({
             </span>
           </div>
         </div>
+
+        {/* Prediction mini progress bar */}
+        <div className="w-full h-1 bg-white/[0.04] rounded-full overflow-hidden">
+          <div
+            className="h-full bg-gradient-to-r from-cyan-500 to-amber-400 transition-all duration-500"
+            style={{ width: `${Math.min(100, Number(forecast.occupancy))}%` }}
+          />
+        </div>
       </div>
 
       {/* Evacuation & Critical Vitals */}
       <div className="grid grid-cols-2 gap-2">
-        <div className="bg-white/[0.02] p-2 rounded-lg border border-white/[0.04]">
+        <div className="bg-white/[0.02] p-2 rounded-lg border border-white/[0.04] hover:border-white/[0.08] transition-colors">
           <div className="text-[9px] text-zinc-400 flex items-center gap-1 mb-0.5 font-mono">
             <Clock size={10} className="text-zinc-500" />
             <span>EST. CLEARANCE TIME</span>
@@ -166,7 +183,7 @@ export const AIInsightsCard: React.FC<AIInsightsCardProps> = ({
           </div>
         </div>
 
-        <div className="bg-white/[0.02] p-2 rounded-lg border border-white/[0.04]">
+        <div className="bg-white/[0.02] p-2 rounded-lg border border-white/[0.04] hover:border-white/[0.08] transition-colors">
           <div className="text-[9px] text-zinc-400 flex items-center gap-1 mb-0.5 font-mono">
             <ShieldCheck size={10} className="text-emerald-400" />
             <span>TIME TO CRITICAL</span>
@@ -178,20 +195,20 @@ export const AIInsightsCard: React.FC<AIInsightsCardProps> = ({
       </div>
 
       {/* Smart Quantified Action Recommendation */}
-      <div className="bg-cyan-500/[0.04] p-2.5 rounded-xl border border-cyan-500/20 flex items-start gap-2.5">
-        <div className="mt-0.5 p-1 rounded-md bg-cyan-500/10 text-cyan-400 flex-shrink-0">
-          {insight.isAlert ? <AlertTriangle size={13} className="text-amber-400" /> : <ArrowRight size={13} />}
+      <div className="bg-cyan-500/[0.05] p-2.5 rounded-xl border border-cyan-500/25 flex items-start gap-2.5 shadow-[inset_0_1px_0_0_rgba(0,224,255,0.1)]">
+        <div className="mt-0.5 p-1 rounded-md bg-cyan-500/15 text-cyan-400 flex-shrink-0">
+          {insight.isAlert ? <AlertTriangle size={13} className="text-amber-400 animate-pulse" /> : <ArrowRight size={13} />}
         </div>
         <div>
           <div className="flex items-center justify-between">
             <span className="text-[9px] font-mono text-cyan-400 uppercase tracking-wider font-semibold">
-              Smart Recommendation
+              Tactical Dispatch
             </span>
-            <span className="text-[9px] font-mono text-emerald-400 font-semibold">
+            <span className="text-[9px] font-mono text-emerald-400 font-semibold bg-emerald-500/10 px-1.5 py-0.5 rounded border border-emerald-500/20">
               {insight.reductionImpact}
             </span>
           </div>
-          <div className="text-xs text-zinc-200 font-medium mt-0.5 leading-snug">
+          <div className="text-xs text-zinc-200 font-medium mt-1 leading-snug">
             {insight.recommendation}
           </div>
         </div>

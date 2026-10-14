@@ -46,6 +46,9 @@ export const LiveStatusPanel: React.FC<LiveStatusPanelProps> = ({
       value: `${count} / ${maxCapacity}`,
       subtext: `${((count / maxCapacity) * 100).toFixed(0)}% of venue limit`,
       color: 'text-zinc-100',
+      iconBox: 'bg-emerald-500/10 border-emerald-500/25 text-emerald-400',
+      barColor: 'bg-emerald-400',
+      progress: Math.min(100, (count / maxCapacity) * 100),
     },
     {
       icon: AlertTriangle,
@@ -53,6 +56,9 @@ export const LiveStatusPanel: React.FC<LiveStatusPanelProps> = ({
       value: getDensityText(density),
       subtext: `${density.toFixed(2)} density index`,
       color: density > 0.3 ? 'text-amber-400' : 'text-emerald-400',
+      iconBox: density > 0.3 ? 'bg-amber-500/10 border-amber-500/25 text-amber-400' : 'bg-emerald-500/10 border-emerald-500/25 text-emerald-400',
+      barColor: density > 0.3 ? 'bg-amber-400' : 'bg-emerald-400',
+      progress: Math.min(100, density * 150),
     },
     {
       icon: Smartphone,
@@ -60,6 +66,9 @@ export const LiveStatusPanel: React.FC<LiveStatusPanelProps> = ({
       value: `${wifiProbeCount}`,
       subtext: 'ESP32 Wi-Fi probes active',
       color: 'text-cyan-400',
+      iconBox: 'bg-cyan-500/10 border-cyan-500/25 text-cyan-400',
+      barColor: 'bg-cyan-400',
+      progress: Math.min(100, wifiProbeCount * 10),
     },
     {
       icon: Shield,
@@ -67,6 +76,9 @@ export const LiveStatusPanel: React.FC<LiveStatusPanelProps> = ({
       value: getRiskText(stampedeRisk),
       subtext: `${stampedeRisk.toFixed(0)}/100 threshold`,
       color: stampedeRisk > 40 ? 'text-red-400' : 'text-emerald-400',
+      iconBox: stampedeRisk > 40 ? 'bg-rose-500/10 border-rose-500/25 text-rose-400' : 'bg-emerald-500/10 border-emerald-500/25 text-emerald-400',
+      barColor: stampedeRisk > 40 ? 'bg-rose-400' : 'bg-emerald-400',
+      progress: Math.min(100, stampedeRisk),
     },
     {
       icon: Gauge,
@@ -74,6 +86,9 @@ export const LiveStatusPanel: React.FC<LiveStatusPanelProps> = ({
       value: `${(avgVelocity / 25).toFixed(1)} m/s`,
       subtext: 'Paced pedestrian flow',
       color: 'text-zinc-100',
+      iconBox: 'bg-purple-500/10 border-purple-500/25 text-purple-400',
+      barColor: 'bg-purple-400',
+      progress: Math.min(100, (avgVelocity / 50) * 100),
     },
     ...(noiseDb !== undefined
       ? [
@@ -83,6 +98,9 @@ export const LiveStatusPanel: React.FC<LiveStatusPanelProps> = ({
             value: `${noiseDb.toFixed(0)} dB`,
             subtext: noiseDb > 80 ? 'Elevated noise spike' : 'INMP441 MEMS baseline',
             color: noiseDb > 80 ? 'text-amber-400' : 'text-zinc-100',
+            iconBox: 'bg-fuchsia-500/10 border-fuchsia-500/25 text-fuchsia-400',
+            barColor: 'bg-fuchsia-400',
+            progress: Math.min(100, (noiseDb / 120) * 100),
           },
         ]
       : []),
@@ -94,13 +112,16 @@ export const LiveStatusPanel: React.FC<LiveStatusPanelProps> = ({
             value: `${temperature.toFixed(1)}°C`,
             subtext: `${humidity.toFixed(0)}% RH (AM2302)`,
             color: temperature > 32 ? 'text-rose-400' : 'text-zinc-100',
+            iconBox: 'bg-sky-500/10 border-sky-500/25 text-sky-400',
+            barColor: 'bg-sky-400',
+            progress: Math.min(100, (temperature / 50) * 100),
           },
         ]
       : []),
   ];
 
   return (
-    <div className="card-level-2 p-4 flex flex-col gap-3">
+    <div className="card-level-2 p-4 flex flex-col gap-3 relative overflow-hidden group">
       <div className="flex items-center justify-between pb-2 border-b border-white/[0.06]">
         <h3 className="text-xs font-semibold tracking-wider text-zinc-300 uppercase font-['Space_Grotesk']">
           Live Status
@@ -117,18 +138,31 @@ export const LiveStatusPanel: React.FC<LiveStatusPanelProps> = ({
 
       <div className="flex flex-col divide-y divide-white/[0.04]">
         {statusItems.map((item, idx) => (
-          <div key={idx} className="py-2.5 first:pt-0 last:pb-0 flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              <div className="w-7 h-7 rounded-lg bg-white/[0.04] flex items-center justify-center text-zinc-400">
-                <item.icon size={14} />
+          <div
+            key={idx}
+            className="py-2.5 first:pt-1 last:pb-1 -mx-1.5 px-1.5 rounded-lg hover:bg-white/[0.02] transition-colors group/row flex flex-col gap-1.5"
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className={`w-7 h-7 rounded-lg border flex items-center justify-center transition-transform group-hover/row:scale-105 ${item.iconBox}`}>
+                  <item.icon size={14} />
+                </div>
+                <div>
+                  <div className="text-xs font-medium text-zinc-300 group-hover/row:text-white transition-colors">{item.label}</div>
+                  <div className="text-[10px] font-mono text-zinc-500">{item.subtext}</div>
+                </div>
               </div>
-              <div>
-                <div className="text-xs font-medium text-zinc-300">{item.label}</div>
-                <div className="text-[10px] font-mono text-zinc-500">{item.subtext}</div>
+              <div className={`text-sm font-semibold font-['Space_Grotesk'] ${item.color}`}>
+                {item.value}
               </div>
             </div>
-            <div className={`text-sm font-semibold font-['Space_Grotesk'] ${item.color}`}>
-              {item.value}
+
+            {/* Micro progress indicator */}
+            <div className="w-full h-[2px] bg-white/[0.04] rounded-full overflow-hidden">
+              <div
+                className={`h-full ${item.barColor} opacity-70 group-hover/row:opacity-100 transition-all duration-500`}
+                style={{ width: `${item.progress}%` }}
+              />
             </div>
           </div>
         ))}

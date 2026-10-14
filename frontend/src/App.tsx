@@ -424,7 +424,7 @@ function App() {
   if (!splashDone) return <SplashScreen onComplete={handleSplashComplete} />;
 
   return (
-    <div className="min-h-screen bg-[#09090b] text-zinc-100 font-sans flex flex-col antialiased selection:bg-red-500 selection:text-white">
+    <div className="min-h-screen tactical-grid-bg text-zinc-100 font-sans flex flex-col antialiased selection:bg-red-500 selection:text-white relative">
       {/* Emergency Full-Screen Flash */}
       {sosMode && (
         <div className="fixed inset-0 pointer-events-none z-[9998] border-4 border-red-500 animate-pulse" />

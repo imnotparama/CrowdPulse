@@ -88,13 +88,13 @@ export const StatusCardsRow: React.FC<StatusCardsRowProps> = ({
       {/* ── Primary Vision & Density Metrics ── */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
         {/* 1. People Detected */}
-        <div className="card-level-2 p-3.5 flex flex-col justify-between group hover:border-white/15 transition-all">
+        <div className="card-level-2 p-3.5 flex flex-col justify-between group hover:border-emerald-500/30 border-t-2 border-t-emerald-500/70 transition-all">
           <div className="flex items-center justify-between text-zinc-400 mb-1">
             <div className="flex items-center gap-2 text-xs font-medium tracking-wide">
-              <div className="w-5 h-5 rounded-md bg-white/[0.05] flex items-center justify-center text-zinc-300">
+              <div className="w-6 h-6 rounded-lg bg-emerald-500/10 border border-emerald-500/25 flex items-center justify-center text-emerald-400">
                 <Users size={12} />
               </div>
-              <span className="font-['Space_Grotesk'] font-semibold text-zinc-300">PEOPLE</span>
+              <span className="font-['Space_Grotesk'] font-semibold text-zinc-200">PEOPLE</span>
             </div>
             <span className="text-[11px] font-mono text-zinc-400 bg-white/[0.04] px-2.5 py-0.5 rounded-full border border-white/[0.06]">
               <AnimatedNumber value={capacityPct} decimals={0} />% CAP
@@ -106,16 +106,23 @@ export const StatusCardsRow: React.FC<StatusCardsRowProps> = ({
             </span>
             <span className="text-xs font-mono text-zinc-500">/ {maxCapacity}</span>
           </div>
+          {/* Micro Capacity Gauge */}
+          <div className="w-full h-1 bg-white/[0.05] rounded-full overflow-hidden mt-2">
+            <div
+              className="h-full bg-emerald-400 rounded-full transition-all duration-500 shadow-[0_0_6px_rgba(52,211,153,0.6)]"
+              style={{ width: `${Math.min(100, capacityPct)}%` }}
+            />
+          </div>
         </div>
 
         {/* 2. Crowd Density */}
-        <div className="card-level-2 p-3.5 flex flex-col justify-between group hover:border-white/15 transition-all">
+        <div className="card-level-2 p-3.5 flex flex-col justify-between group hover:border-amber-500/30 border-t-2 border-t-amber-500/70 transition-all">
           <div className="flex items-center justify-between text-zinc-400 mb-1">
             <div className="flex items-center gap-2 text-xs font-medium tracking-wide">
-              <div className="w-5 h-5 rounded-md bg-white/[0.05] flex items-center justify-center text-zinc-300">
+              <div className="w-6 h-6 rounded-lg bg-amber-500/10 border border-amber-500/25 flex items-center justify-center text-amber-400">
                 <AlertTriangle size={12} />
               </div>
-              <span className="font-['Space_Grotesk'] font-semibold text-zinc-300">DENSITY</span>
+              <span className="font-['Space_Grotesk'] font-semibold text-zinc-200">DENSITY</span>
             </div>
             {getDensityPill(density)}
           </div>
@@ -125,16 +132,29 @@ export const StatusCardsRow: React.FC<StatusCardsRowProps> = ({
             </span>
             <span className="text-xs font-mono text-zinc-500">idx</span>
           </div>
+          {/* Micro Density Bar */}
+          <div className="w-full h-1 bg-white/[0.05] rounded-full overflow-hidden mt-2">
+            <div
+              className={`h-full rounded-full transition-all duration-500 ${
+                density > 0.4
+                  ? 'bg-rose-500 shadow-[0_0_6px_rgba(244,63,94,0.6)]'
+                  : density > 0.25
+                  ? 'bg-amber-400 shadow-[0_0_6px_rgba(251,191,36,0.6)]'
+                  : 'bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.6)]'
+              }`}
+              style={{ width: `${Math.min(100, (density / 0.6) * 100)}%` }}
+            />
+          </div>
         </div>
 
         {/* 3. Stampede Risk with Mini Circular Ring */}
-        <div className="card-level-2 p-3.5 flex flex-col justify-between group hover:border-white/15 transition-all">
+        <div className="card-level-2 p-3.5 flex flex-col justify-between group hover:border-rose-500/30 border-t-2 border-t-rose-500/70 transition-all">
           <div className="flex items-center justify-between text-zinc-400 mb-1">
             <div className="flex items-center gap-2 text-xs font-medium tracking-wide">
-              <div className="w-5 h-5 rounded-md bg-white/[0.05] flex items-center justify-center text-zinc-300">
+              <div className="w-6 h-6 rounded-lg bg-rose-500/10 border border-rose-500/25 flex items-center justify-center text-rose-400">
                 <ShieldCheck size={12} />
               </div>
-              <span className="font-['Space_Grotesk'] font-semibold text-zinc-300">RISK</span>
+              <span className="font-['Space_Grotesk'] font-semibold text-zinc-200">RISK</span>
             </div>
             <span className={status === 'CRITICAL' ? 'pill-glowing-critical' : status === 'WARNING' ? 'pill-glowing-warning' : 'pill-glowing-safe'}>
               <span className="w-1.5 h-1.5 rounded-full bg-current" />
@@ -170,20 +190,28 @@ export const StatusCardsRow: React.FC<StatusCardsRowProps> = ({
                   strokeDashoffset={2 * Math.PI * 13 - (Math.min(stampedeRisk, 100) / 100) * (2 * Math.PI * 13)}
                   strokeLinecap="round"
                   className="transition-all duration-700 ease-out"
+                  style={{ filter: `drop-shadow(0 0 4px ${ringColor})` }}
                 />
               </svg>
             </div>
           </div>
+          {/* Micro Risk Bar */}
+          <div className="w-full h-1 bg-white/[0.05] rounded-full overflow-hidden mt-2">
+            <div
+              className="h-full rounded-full transition-all duration-500"
+              style={{ width: `${Math.min(100, stampedeRisk)}%`, backgroundColor: ringColor }}
+            />
+          </div>
         </div>
 
         {/* 4. Connected Devices */}
-        <div className="card-level-2 p-3.5 flex flex-col justify-between group hover:border-white/15 transition-all">
+        <div className="card-level-2 p-3.5 flex flex-col justify-between group hover:border-cyan-500/30 border-t-2 border-t-cyan-500/70 transition-all">
           <div className="flex items-center justify-between text-zinc-400 mb-1">
             <div className="flex items-center gap-2 text-xs font-medium tracking-wide">
-              <div className="w-5 h-5 rounded-md bg-white/[0.05] flex items-center justify-center text-zinc-300">
+              <div className="w-6 h-6 rounded-lg bg-cyan-500/10 border border-cyan-500/25 flex items-center justify-center text-cyan-400">
                 <Wifi size={12} />
               </div>
-              <span className="font-['Space_Grotesk'] font-semibold text-zinc-300">DEVICES</span>
+              <span className="font-['Space_Grotesk'] font-semibold text-zinc-200">DEVICES</span>
             </div>
             <span className="text-[10px] font-mono text-cyan-400 bg-cyan-500/10 px-2.5 py-0.5 rounded-full flex items-center gap-1 border border-cyan-500/20">
               <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
@@ -196,16 +224,23 @@ export const StatusCardsRow: React.FC<StatusCardsRowProps> = ({
             </span>
             <span className="text-xs font-mono text-zinc-500">probed</span>
           </div>
+          {/* Micro Probe Bar */}
+          <div className="w-full h-1 bg-white/[0.05] rounded-full overflow-hidden mt-2">
+            <div
+              className="h-full bg-cyan-400 rounded-full transition-all duration-500 shadow-[0_0_6px_rgba(0,224,255,0.6)]"
+              style={{ width: `${Math.min(100, (wifiProbeCount / 40) * 100)}%` }}
+            />
+          </div>
         </div>
 
         {/* 5. Flow Velocity */}
-        <div className="card-level-2 p-3.5 flex flex-col justify-between group hover:border-white/15 transition-all">
+        <div className="card-level-2 p-3.5 flex flex-col justify-between group hover:border-purple-500/30 border-t-2 border-t-purple-500/70 transition-all">
           <div className="flex items-center justify-between text-zinc-400 mb-1">
             <div className="flex items-center gap-2 text-xs font-medium tracking-wide">
-              <div className="w-5 h-5 rounded-md bg-white/[0.05] flex items-center justify-center text-zinc-300">
+              <div className="w-6 h-6 rounded-lg bg-purple-500/10 border border-purple-500/25 flex items-center justify-center text-purple-400">
                 <Activity size={12} />
               </div>
-              <span className="font-['Space_Grotesk'] font-semibold text-zinc-300">SPEED</span>
+              <span className="font-['Space_Grotesk'] font-semibold text-zinc-200">SPEED</span>
             </div>
             <span className="text-[10px] font-mono text-emerald-400 flex items-center gap-0.5 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20 font-semibold">
               <ArrowUpRight size={11} />
@@ -218,15 +253,35 @@ export const StatusCardsRow: React.FC<StatusCardsRowProps> = ({
             </span>
             <span className="text-xs font-mono text-zinc-500">m/s</span>
           </div>
+          {/* Micro Speed Bar */}
+          <div className="w-full h-1 bg-white/[0.05] rounded-full overflow-hidden mt-2">
+            <div
+              className="h-full bg-purple-400 rounded-full transition-all duration-500 shadow-[0_0_6px_rgba(192,132,252,0.6)]"
+              style={{ width: `${Math.min(100, (avgVelocity / 60) * 100)}%` }}
+            />
+          </div>
         </div>
       </div>
 
       {/* ── Hardware Layer Telemetry Cards (Extended v4.1) ── */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5 mt-2.5">
+      <div className="flex items-center justify-between mt-3 mb-1.5 px-0.5">
+        <div className="flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse shadow-[0_0_8px_rgba(0,224,255,0.8)]" />
+          <span className="text-[10px] font-mono uppercase tracking-wider text-zinc-300 font-bold">
+            Physical Edge Sensing Node
+          </span>
+          <span className="text-[9px] font-mono text-zinc-500">| AM2302 • INMP441 • PIR DUAL</span>
+        </div>
+        <span className="text-[9px] font-mono text-cyan-400 bg-cyan-500/10 px-2 py-0.5 rounded-full border border-cyan-500/20 font-semibold">
+          MULTI-SENSOR AI TELEMETRY
+        </span>
+      </div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
         {/* 1. Temperature */}
-        <div className="card-level-2 p-2.5 flex items-center justify-between group hover:border-white/15 transition-all">
+        <div className="card-level-2 p-2.5 flex items-center justify-between group hover:border-rose-500/30 transition-all">
           <div className="flex items-center gap-2">
-            <div className="w-5 h-5 rounded-md bg-rose-500/10 flex items-center justify-center text-rose-400">
+            <div className="w-6 h-6 rounded-md bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-400">
               <Thermometer size={12} />
             </div>
             <div>
@@ -236,13 +291,13 @@ export const StatusCardsRow: React.FC<StatusCardsRowProps> = ({
               </div>
             </div>
           </div>
-          <span className="text-[9px] font-mono text-zinc-500">AM2302</span>
+          <span className="text-[8px] font-mono text-zinc-500 bg-white/[0.04] px-1.5 py-0.5 rounded">AM2302</span>
         </div>
 
         {/* 2. Humidity */}
-        <div className="card-level-2 p-2.5 flex items-center justify-between group hover:border-white/15 transition-all">
+        <div className="card-level-2 p-2.5 flex items-center justify-between group hover:border-cyan-500/30 transition-all">
           <div className="flex items-center gap-2">
-            <div className="w-5 h-5 rounded-md bg-cyan-500/10 flex items-center justify-center text-cyan-400">
+            <div className="w-6 h-6 rounded-md bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400">
               <Droplets size={12} />
             </div>
             <div>
@@ -252,13 +307,13 @@ export const StatusCardsRow: React.FC<StatusCardsRowProps> = ({
               </div>
             </div>
           </div>
-          <span className="text-[9px] font-mono text-zinc-500">RH</span>
+          <span className="text-[8px] font-mono text-zinc-500 bg-white/[0.04] px-1.5 py-0.5 rounded">RH</span>
         </div>
 
         {/* 3. Noise */}
-        <div className="card-level-2 p-2.5 flex items-center justify-between group hover:border-white/15 transition-all">
+        <div className="card-level-2 p-2.5 flex items-center justify-between group hover:border-amber-500/30 transition-all">
           <div className="flex items-center gap-2">
-            <div className="w-5 h-5 rounded-md bg-amber-500/10 flex items-center justify-center text-amber-400">
+            <div className="w-6 h-6 rounded-md bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
               <Mic size={12} />
             </div>
             <div>
@@ -268,16 +323,18 @@ export const StatusCardsRow: React.FC<StatusCardsRowProps> = ({
               </div>
             </div>
           </div>
-          <span className={`text-[9px] font-mono font-semibold ${noiseDb > 80 ? 'text-rose-400' : 'text-emerald-400'}`}>
+          <span className={`text-[9px] font-mono font-semibold px-1.5 py-0.5 rounded ${
+            noiseDb > 80 ? 'text-rose-400 bg-rose-500/10' : 'text-emerald-400 bg-emerald-500/10'
+          }`}>
             {noiseDb > 80 ? 'HIGH' : 'NORM'}
           </span>
         </div>
 
         {/* 4. Motion */}
-        <div className="card-level-2 p-2.5 flex items-center justify-between group hover:border-white/15 transition-all">
+        <div className="card-level-2 p-2.5 flex items-center justify-between group hover:border-amber-500/30 transition-all">
           <div className="flex items-center gap-2">
-            <div className={`w-5 h-5 rounded-md flex items-center justify-center ${
-              motionDetected ? 'bg-amber-500/20 text-amber-300' : 'bg-white/[0.05] text-zinc-400'
+            <div className={`w-6 h-6 rounded-md flex items-center justify-center ${
+              motionDetected ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' : 'bg-white/[0.05] text-zinc-400'
             }`}>
               <Activity size={12} className={motionDetected ? 'animate-pulse' : ''} />
             </div>
@@ -288,13 +345,13 @@ export const StatusCardsRow: React.FC<StatusCardsRowProps> = ({
               </div>
             </div>
           </div>
-          <span className={`w-1.5 h-1.5 rounded-full ${motionDetected ? 'bg-amber-400 animate-ping' : 'bg-zinc-600'}`} />
+          <span className={`w-2 h-2 rounded-full ${motionDetected ? 'bg-amber-400 animate-ping' : 'bg-zinc-600'}`} />
         </div>
 
         {/* 5. Fusion Confidence */}
-        <div className="card-level-2 p-2.5 flex items-center justify-between group hover:border-white/15 transition-all">
+        <div className="card-level-2 p-2.5 flex items-center justify-between group hover:border-cyan-500/30 transition-all">
           <div className="flex items-center gap-2">
-            <div className="w-5 h-5 rounded-md bg-cyan-500/10 flex items-center justify-center text-cyan-400">
+            <div className="w-6 h-6 rounded-md bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400">
               <Zap size={12} />
             </div>
             <div>
@@ -304,13 +361,15 @@ export const StatusCardsRow: React.FC<StatusCardsRowProps> = ({
               </div>
             </div>
           </div>
-          <span className="text-[9px] font-mono text-cyan-500/90 font-bold">FUSED</span>
+          <span className="text-[9px] font-mono text-cyan-400 bg-cyan-500/10 px-1.5 py-0.5 rounded border border-cyan-500/20 font-bold">
+            FUSED
+          </span>
         </div>
 
         {/* 6. Sensor Status */}
-        <div className="card-level-2 p-2.5 flex items-center justify-between group hover:border-white/15 transition-all">
+        <div className="card-level-2 p-2.5 flex items-center justify-between group hover:border-emerald-500/30 transition-all">
           <div className="flex items-center gap-2">
-            <div className="w-5 h-5 rounded-md bg-emerald-500/10 flex items-center justify-center text-emerald-400">
+            <div className="w-6 h-6 rounded-md bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
               <Cpu size={12} />
             </div>
             <div>
@@ -320,7 +379,9 @@ export const StatusCardsRow: React.FC<StatusCardsRowProps> = ({
               </div>
             </div>
           </div>
-          <span className="text-[8px] font-mono text-zinc-500 uppercase">{hardwareStatus}</span>
+          <span className="text-[8px] font-mono text-zinc-500 bg-white/[0.04] px-1.5 py-0.5 rounded uppercase">
+            {hardwareStatus}
+          </span>
         </div>
       </div>
     </div>

@@ -26,6 +26,7 @@ export const RiskGauge: React.FC<RiskGaugeProps> = ({
         icon: ShieldAlert,
         gradientStart: '#ff1744',
         gradientEnd: '#ff5252',
+        glowColor: 'rgba(255, 23, 68, 0.4)',
       };
     }
     if (clampedRisk > 40) {
@@ -36,6 +37,7 @@ export const RiskGauge: React.FC<RiskGaugeProps> = ({
         icon: AlertTriangle,
         gradientStart: '#ff9800',
         gradientEnd: '#ffb74d',
+        glowColor: 'rgba(255, 152, 0, 0.35)',
       };
     }
     if (clampedRisk > 20) {
@@ -46,6 +48,7 @@ export const RiskGauge: React.FC<RiskGaugeProps> = ({
         icon: AlertTriangle,
         gradientStart: '#ffc107',
         gradientEnd: '#ffe082',
+        glowColor: 'rgba(255, 193, 7, 0.3)',
       };
     }
     return {
@@ -55,22 +58,41 @@ export const RiskGauge: React.FC<RiskGaugeProps> = ({
       icon: ShieldCheck,
       gradientStart: '#00ff88',
       gradientEnd: '#69f0ae',
+      glowColor: 'rgba(0, 255, 136, 0.35)',
     };
   };
 
   const theme = getTheme();
+  const Icon = theme.icon;
+
   // 180-degree semicircle math
   const radius = 42;
   const circumference = Math.PI * radius; // Half-circle circumference
   const strokeDashoffset = circumference - (clampedRisk / 100) * circumference;
 
+  const densityPct = Math.min(100, clampedRisk * 0.4);
+  const pressurePct = Math.min(100, clampedRisk * 0.35);
+  const agitationPct = Math.min(100, clampedRisk * 0.25);
+  const envPct = environmentRisk !== undefined ? Math.min(100, environmentRisk) : 0;
+
   return (
-    <div className="card-level-2 p-4 flex flex-col items-center justify-between">
+    <div className="card-level-2 p-4 flex flex-col items-center justify-between relative overflow-hidden group">
+      {/* Subtle top indicator line matching status theme */}
+      <div
+        className="absolute top-0 inset-x-0 h-[2px] opacity-70 transition-all duration-500"
+        style={{
+          background: `linear-gradient(90deg, transparent, ${theme.color}, transparent)`,
+        }}
+      />
+
       {/* Header */}
       <div className="w-full flex items-center justify-between pb-1.5 border-b border-white/[0.06]">
-        <h3 className="text-xs font-semibold tracking-wider text-zinc-300 uppercase font-['Space_Grotesk']">
-          Risk Index
-        </h3>
+        <div className="flex items-center gap-1.5">
+          <Icon className="w-3.5 h-3.5" style={{ color: theme.color }} />
+          <h3 className="text-xs font-semibold tracking-wider text-zinc-300 uppercase font-['Space_Grotesk']">
+            Risk Index
+          </h3>
+        </div>
         <span className={theme.pillClass}>
           <span className="w-1.5 h-1.5 rounded-full bg-current" />
           {status || theme.label}
@@ -79,12 +101,21 @@ export const RiskGauge: React.FC<RiskGaugeProps> = ({
 
       {/* Semicircle 180° Gauge */}
       <div className="relative w-36 h-20 my-2 flex items-end justify-center overflow-hidden">
-        <svg className="w-36 h-36" viewBox="0 0 100 100">
+        {/* Soft ambient radial glow under the arc */}
+        <div
+          className="absolute -bottom-10 w-28 h-20 rounded-full blur-xl pointer-events-none transition-all duration-700 opacity-60"
+          style={{ backgroundColor: theme.glowColor }}
+        />
+
+        <svg className="w-36 h-36 relative z-10" viewBox="0 0 100 100">
           <defs>
             <linearGradient id="semicircleGrad" x1="0%" y1="0%" x2="100%" y2="0%">
               <stop offset="0%" stopColor={theme.gradientStart} />
               <stop offset="100%" stopColor={theme.gradientEnd} />
             </linearGradient>
+            <filter id="gaugeArcGlow" x="-20%" y="-20%" width="140%" height="140%">
+              <feDropShadow dx="0" dy="0" stdDeviation="2.5" floodColor={theme.color} floodOpacity="0.6" />
+            </filter>
           </defs>
 
           {/* Background Half Arc */}
@@ -96,7 +127,7 @@ export const RiskGauge: React.FC<RiskGaugeProps> = ({
             strokeLinecap="round"
           />
 
-          {/* Progress Half Arc */}
+          {/* Progress Half Arc with Glow */}
           <path
             d="M 8 50 A 42 42 0 0 1 92 50"
             fill="none"
@@ -105,12 +136,13 @@ export const RiskGauge: React.FC<RiskGaugeProps> = ({
             strokeDasharray={circumference}
             strokeDashoffset={strokeDashoffset}
             strokeLinecap="round"
+            filter="url(#gaugeArcGlow)"
             className="transition-all duration-700 ease-out"
           />
         </svg>
 
         {/* Center Readout inside Arc */}
-        <div className="absolute bottom-0 flex flex-col items-center justify-center">
+        <div className="absolute bottom-0 flex flex-col items-center justify-center z-10">
           <div className="flex items-baseline gap-0.5">
             <span className="text-3xl font-bold font-['Space_Grotesk'] text-white tracking-tight">
               {clampedRisk.toFixed(0)}
@@ -123,31 +155,58 @@ export const RiskGauge: React.FC<RiskGaugeProps> = ({
         </div>
       </div>
 
-      {/* Segmented Sub-indicators */}
+      {/* Segmented Sub-indicators with micro-progress bars */}
       <div className={`w-full grid ${environmentRisk !== undefined ? 'grid-cols-4' : 'grid-cols-3'} gap-1.5 pt-2 border-t border-white/[0.05] text-center`}>
-        <div className="bg-white/[0.02] py-1 px-1 rounded-lg border border-white/[0.03]">
+        <div className="bg-white/[0.02] py-1 px-1 rounded-lg border border-white/[0.03] flex flex-col justify-between">
           <div className="text-[8px] font-mono text-zinc-500">DENSITY</div>
           <div className="text-xs font-mono font-bold text-zinc-200">
-            {(clampedRisk * 0.4).toFixed(0)}%
+            {densityPct.toFixed(0)}%
+          </div>
+          <div className="w-full h-1 bg-white/[0.06] rounded-full overflow-hidden mt-1">
+            <div
+              className="h-full bg-amber-400 rounded-full transition-all duration-500"
+              style={{ width: `${densityPct}%` }}
+            />
           </div>
         </div>
-        <div className="bg-white/[0.02] py-1 px-1 rounded-lg border border-white/[0.03]">
+
+        <div className="bg-white/[0.02] py-1 px-1 rounded-lg border border-white/[0.03] flex flex-col justify-between">
           <div className="text-[8px] font-mono text-zinc-500">PRESSURE</div>
           <div className="text-xs font-mono font-bold text-zinc-200">
-            {(clampedRisk * 0.35).toFixed(0)}%
+            {pressurePct.toFixed(0)}%
+          </div>
+          <div className="w-full h-1 bg-white/[0.06] rounded-full overflow-hidden mt-1">
+            <div
+              className="h-full bg-rose-400 rounded-full transition-all duration-500"
+              style={{ width: `${pressurePct}%` }}
+            />
           </div>
         </div>
-        <div className="bg-white/[0.02] py-1 px-1 rounded-lg border border-white/[0.03]">
+
+        <div className="bg-white/[0.02] py-1 px-1 rounded-lg border border-white/[0.03] flex flex-col justify-between">
           <div className="text-[8px] font-mono text-zinc-500">AGITATION</div>
           <div className="text-xs font-mono font-bold text-zinc-200">
-            {(clampedRisk * 0.25).toFixed(0)}%
+            {agitationPct.toFixed(0)}%
+          </div>
+          <div className="w-full h-1 bg-white/[0.06] rounded-full overflow-hidden mt-1">
+            <div
+              className="h-full bg-purple-400 rounded-full transition-all duration-500"
+              style={{ width: `${agitationPct}%` }}
+            />
           </div>
         </div>
+
         {environmentRisk !== undefined && (
-          <div className="bg-white/[0.02] py-1 px-1 rounded-lg border border-white/[0.03]">
+          <div className="bg-white/[0.02] py-1 px-1 rounded-lg border border-white/[0.03] flex flex-col justify-between">
             <div className="text-[8px] font-mono text-cyan-400">ENV RISK</div>
             <div className="text-xs font-mono font-bold text-cyan-300">
-              {environmentRisk.toFixed(0)}%
+              {envPct.toFixed(0)}%
+            </div>
+            <div className="w-full h-1 bg-white/[0.06] rounded-full overflow-hidden mt-1">
+              <div
+                className="h-full bg-cyan-400 rounded-full transition-all duration-500"
+                style={{ width: `${envPct}%` }}
+              />
             </div>
           </div>
         )}

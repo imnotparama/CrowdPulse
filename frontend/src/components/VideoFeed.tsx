@@ -193,8 +193,14 @@ export const VideoFeed: React.FC<VideoFeedProps> = ({
       <div
         ref={containerRef}
         onClick={handleClick}
-        className="card-level-1 flex-1 min-h-[460px] lg:min-h-[560px] relative overflow-hidden flex items-center justify-center bg-black group select-none cursor-crosshair"
+        className="card-level-1 flex-1 min-h-[460px] lg:min-h-[560px] relative overflow-hidden flex items-center justify-center bg-[#07070a] group select-none cursor-crosshair border border-cyan-500/20 shadow-[0_0_30px_rgba(0,0,0,0.9)]"
       >
+        {/* 4 Corner Tactical Reticles */}
+        <div className="absolute top-2.5 left-2.5 w-3.5 h-3.5 border-t-2 border-l-2 border-cyan-400/60 pointer-events-none z-20" />
+        <div className="absolute top-2.5 right-2.5 w-3.5 h-3.5 border-t-2 border-r-2 border-cyan-400/60 pointer-events-none z-20" />
+        <div className="absolute bottom-2.5 left-2.5 w-3.5 h-3.5 border-b-2 border-l-2 border-cyan-400/60 pointer-events-none z-20" />
+        <div className="absolute bottom-2.5 right-2.5 w-3.5 h-3.5 border-b-2 border-r-2 border-cyan-400/60 pointer-events-none z-20" />
+
         {/* Flash effect on snapshot */}
         {snapshotEffect && (
           <div className="absolute inset-0 bg-white z-50 pointer-events-none transition-opacity duration-300 animate-out fade-out" />
@@ -202,7 +208,7 @@ export const VideoFeed: React.FC<VideoFeedProps> = ({
 
         {/* ── Top-Left HUD Info: Camera & Zone Pills ── */}
         <div className="absolute top-4 left-4 z-20 flex items-center gap-2 pointer-events-none">
-          <div className="bg-black/75 backdrop-blur-md px-3.5 py-1.5 rounded-xl border border-white/[0.12] text-xs font-medium text-white flex items-center gap-2.5 shadow-xl">
+          <div className="bg-black/80 backdrop-blur-md px-3.5 py-1.5 rounded-xl border border-white/[0.12] text-xs font-medium text-white flex items-center gap-2.5 shadow-xl">
             <span
               className={`w-2.5 h-2.5 rounded-full ${
                 status === 'CRITICAL'
@@ -236,7 +242,7 @@ export const VideoFeed: React.FC<VideoFeedProps> = ({
         {/* ── Top-Right Edge AI Diagnostics Telemetry HUD ── */}
         <div className="absolute top-4 right-4 z-20 flex items-center gap-2 pointer-events-none">
           {flowDirection && flowDirection.label !== 'STABLE' && (
-            <div className="bg-black/75 backdrop-blur-md px-3 py-1.5 rounded-xl border border-cyan-500/30 text-cyan-400 text-xs font-mono flex items-center gap-1.5 shadow-xl">
+            <div className="bg-black/80 backdrop-blur-md px-3 py-1.5 rounded-xl border border-cyan-500/30 text-cyan-400 text-xs font-mono flex items-center gap-1.5 shadow-xl">
               <Compass size={13} className="text-cyan-400" />
               <span>FLOW: {flowDirection.label}</span>
               <span
@@ -249,7 +255,7 @@ export const VideoFeed: React.FC<VideoFeedProps> = ({
           )}
 
           {/* Edge AI Model & Latency Vitals */}
-          <div className="hidden md:flex items-center gap-2 bg-black/75 backdrop-blur-md px-3 py-1.5 rounded-xl border border-white/[0.12] text-[11px] font-mono text-zinc-300 shadow-xl">
+          <div className="hidden md:flex items-center gap-2 bg-black/80 backdrop-blur-md px-3 py-1.5 rounded-xl border border-white/[0.12] text-[11px] font-mono text-zinc-300 shadow-xl">
             <div className="flex items-center gap-1.5 text-cyan-400">
               <Zap size={12} />
               <span>YOLOv11</span>
@@ -263,6 +269,24 @@ export const VideoFeed: React.FC<VideoFeedProps> = ({
             </div>
           </div>
         </div>
+
+        {/* Standby / Initializing Overlay if no image arrives */}
+        {!hasImage && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 z-10 pointer-events-none">
+            <div className="w-16 h-16 rounded-full border border-cyan-500/30 flex items-center justify-center relative overflow-hidden">
+              <div className="absolute inset-0 border-t-2 border-cyan-400 animate-spin" />
+              <div className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
+            </div>
+            <div className="flex flex-col items-center gap-1">
+              <span className="text-xs font-mono text-cyan-400 font-semibold tracking-wider">
+                SYNCHRONIZING AI VIDEO STREAM
+              </span>
+              <span className="text-[10px] font-mono text-zinc-500">
+                1080p RTSP • OPTICAL FLOW READY
+              </span>
+            </div>
+          </div>
+        )}
 
         {/* Video Frame Image */}
         <img
