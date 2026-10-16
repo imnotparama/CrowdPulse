@@ -358,16 +358,17 @@ Level-3 bottom scrubber tracking operational events with historical replay capab
 ---
 
 ### 3.6 `components/RiskGauge.tsx` (Semicircle Arc Gauge)
-Level-2 risk visualization using a clean 180° semicircle arc.
+Level-2 risk visualization using a non-clipped 180° semicircle arc.
 
 #### Mathematical Arc Calculation:
 ```typescript
-const radius = 42;
+const radius = 38;
 const circumference = Math.PI * radius; // 180-degree half circumference
 const strokeDashoffset = circumference - (clampedRisk / 100) * circumference;
 ```
-- Rendered via SVG path: `M 8 50 A 42 42 0 0 1 92 50`.
-- Includes segmented sub-indicators: Density (40%), Physical Pressure (35%), Agitation (25%).
+- Rendered via SVG path: `M 12 50 A 38 38 0 0 1 88 50` within `viewBox="0 0 100 58"` container (`w-44 h-24`).
+- Ambient radial drop-shadow filter (`#gaugeArcGlow`) providing sleek neon glow without SVG boundary clipping.
+- Includes segmented sub-indicators: Density (40%), Physical Pressure (35%), Agitation (25%), Environment Risk (ESP32-S3 AM2302 & INMP441 fusion).
 
 ---
 
@@ -403,9 +404,10 @@ Cryptographic modal for reviewing and exporting captured security video sessions
 
 ---
 
-### 3.10 `components/LiveStatusPanel.tsx` & `Header.tsx`
-- **`LiveStatusPanel.tsx`**: Left column high-readability list (People, Density, Devices, Risk, Average Speed) with status badges.
-- **`Header.tsx`**: Header bar displaying brand identity, `ENTERPRISE v4.0`, active telemetry pill (`SYS SAFE`, `5 FEEDS`, `SENSORS`), CPU and latency vitals, direct `VAULT` launcher button, and `EMERGENCY SOS` button.
+### 3.10 `components/LiveStatusPanel.tsx`, `StatusCardsRow.tsx` & `Header.tsx`
+- **`StatusCardsRow.tsx`**: Single-row 6-module command telemetry ribbon consolidating People Detected, Crowd Density, Threat Index, Pedestrian Velocity, Wi-Fi Probes, and ESP32 Edge IoT Node telemetry. Uses smooth micro-interpolated `AnimatedNumber` transitions.
+- **`LiveStatusPanel.tsx`**: Left column Sector Flow & Access monitoring module. Displays aggregate venue load bar, per-sector clearance table (Main Entrance, South Turnstiles, Gate A, Emergency Exits), vector flow orientation, egress pacing, and evacuation clearance estimates without repeating top ribbon KPIs.
+- **`Header.tsx`**: Executive SOC header displaying brand identity, `v4.1 ENTERPRISE`, active telemetry glass pill (`ONLINE`, `SYS SAFE`, `5 CHANNELS`, `ESP32-S3 NODE`), CPU and latency vitals, direct `VAULT` and `AUDIT` triggers, and `EMERGENCY SOS` button.
 
 ---
 
