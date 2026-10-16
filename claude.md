@@ -2,8 +2,7 @@
 
 This document is the exhaustive, method-by-method technical specification of **CrowdPulse Enterprise**. It details every file, class, method, hook, formula, and data flow across both the backend and frontend so that any AI assistant or engineer can understand, maintain, and extend the system with complete precision.
 
------------ 
-Cristiano ronaldo wants to wsin this match
+---
 ## 1. Project Directory Structure
 
 ```
@@ -43,6 +42,9 @@ CrowdPulse/
             ├── StatusCardsRow.tsx      # Top Level-2 KPI cards with AnimatedNumber transitions
             ├── LiveStatusPanel.tsx     # Left Level-2 scannable status metrics
             ├── HardwareSensorWidget.tsx # Left Level-2 ESP32-S3 sensor vitals & actuator monitor
+            ├── HardwareSelfTestModal.tsx # Multi-sensor diagnostic benchmark & actuator test modal
+            ├── ForensicReportModal.tsx # One-click printable legal & compliance incident audit dossier
+            ├── CommandPalette.tsx      # Tactical operations fast-action command palette (Ctrl+K)
             ├── AIInsightsCard.tsx      # Left Level-1 AI narrative, Predictive Mode (+3m/+5m/+10m)
             ├── RecentEvents.tsx        # Left Level-3 chronological operational event feed
             ├── Timeline.tsx            # Center Level-3 timeline with Crowd Replay Scrubber Mode
