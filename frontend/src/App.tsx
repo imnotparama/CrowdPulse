@@ -16,6 +16,9 @@ import AIChatSidebar from './components/AIChatSidebar';
 import EvidenceLocker from './components/EvidenceLocker';
 import SplashScreen from './components/SplashScreen';
 import HardwareSensorWidget from './components/HardwareSensorWidget';
+import HardwareSelfTestModal, { type SelfTestReport } from './components/HardwareSelfTestModal';
+import ForensicReportModal from './components/ForensicReportModal';
+import CommandPalette from './components/CommandPalette';
 
 interface WifiZone {
   count: number;
@@ -136,6 +139,13 @@ function App() {
   const [recordings, setRecordings] = useState<string[]>([]);
   const [selectedVideo, setSelectedVideo] = useState<string | null>(null);
 
+  const [selfTestOpen, setSelfTestOpen] = useState(false);
+  const [selfTestRunning, setSelfTestRunning] = useState(false);
+  const [selfTestReport, setSelfTestReport] = useState<SelfTestReport | null>(null);
+
+  const [reportOpen, setReportOpen] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
+
   const [wsConnected, setWsConnected] = useState(false);
   const reconnectAttempt = useRef(0);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -229,6 +239,14 @@ function App() {
 
     ws.current.onmessage = (event) => {
       const data = JSON.parse(event.data);
+
+      if (data.type === 'selftest_result' && data.report) {
+        setSelfTestReport(data.report);
+        setSelfTestRunning(false);
+        setSelfTestOpen(true);
+        playSound('beep');
+        return;
+      }
 
       if (data.image) {
         imageRef.current = data.image;
@@ -364,6 +382,13 @@ function App() {
   // Keyboard shortcuts
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setPaletteOpen((prev) => !prev);
+        playSound('click');
+        return;
+      }
+
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
 
       switch (e.key.toLowerCase()) {
@@ -391,6 +416,48 @@ function App() {
     if (ws.current && ws.current.readyState === WebSocket.OPEN) {
       ws.current.send(JSON.stringify({ action, ...payload }));
       playSound('click');
+    }
+  };
+
+  const runHardwareSelfTest = async () => {
+    setSelfTestRunning(true);
+    playSound('beep');
+    try {
+      const res = await fetch('http://127.0.0.1:8000/api/hardware/self-test', { method: 'POST' });
+      if (res.ok) {
+        const data = await res.json();
+        setSelfTestReport(data);
+      }
+    } catch {
+      // Fallback via WebSocket
+      sendCommand('hardware_selftest');
+    } finally {
+      setSelfTestRunning(false);
+      setSelfTestOpen(true);
+    }
+  };
+
+  const overrideHardwareActuator = async (buzzer: boolean | null, led: string | null) => {
+    playSound('click');
+    sendCommand('hardware_override', { buzzer, led });
+    try {
+      await fetch('http://127.0.0.1:8000/api/hardware/actuators/override', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ buzzer, led }),
+      });
+    } catch {
+      // ignore
+    }
+  };
+
+  const resetHardwareActuators = async () => {
+    playSound('click');
+    sendCommand('hardware_reset');
+    try {
+      await fetch('http://127.0.0.1:8000/api/hardware/actuators/reset', { method: 'POST' });
+    } catch {
+      // ignore
     }
   };
 
@@ -444,6 +511,8 @@ function App() {
           setLockerOpen(true);
           fetchRecordings();
         }}
+        onOpenReport={() => setReportOpen(true)}
+        onOpenPalette={() => setPaletteOpen(true)}
       />
 
       {/* ── Main Viewport Container ── */}
@@ -500,6 +569,8 @@ function App() {
               fusionConfidence={stats.fusion_confidence}
               sensorScore={stats.sensor_score}
               heatStressIndex={stats.heat_stress_index}
+              onOpenSelfTest={runHardwareSelfTest}
+              onOverrideActuator={overrideHardwareActuator}
             />
 
             <AIInsightsCard
@@ -658,6 +729,55 @@ function App() {
         recordings={recordings}
         selectedVideo={selectedVideo}
         setSelectedVideo={setSelectedVideo}
+      />
+
+      {/* ── Hardware Self-Test Benchmark Modal ── */}
+      <HardwareSelfTestModal
+        isOpen={selfTestOpen}
+        onClose={() => setSelfTestOpen(false)}
+        report={selfTestReport}
+        isRunning={selfTestRunning}
+        onRunTest={runHardwareSelfTest}
+        onOverrideActuator={overrideHardwareActuator}
+      />
+
+      {/* ── Forensic Incident Audit Report Modal ── */}
+      <ForensicReportModal
+        isOpen={reportOpen}
+        onClose={() => setReportOpen(false)}
+        stats={stats}
+        activeCamera={activeCamera}
+        imageRef={imageRef}
+        alertHistory={alertHistory}
+      />
+
+      {/* ── Operational Command Palette (Ctrl+K) ── */}
+      <CommandPalette
+        isOpen={paletteOpen}
+        onClose={() => setPaletteOpen(false)}
+        onSelectCamera={handleCameraChange}
+        onToggleVision={() => sendCommand('set_mode', { mode: stats.mode === 'OPTICAL' ? 'thermal' : 'optical' })}
+        onOpenReport={() => setReportOpen(true)}
+        onOpenSelfTest={runHardwareSelfTest}
+        onOpenVault={() => {
+          setLockerOpen(true);
+          fetchRecordings();
+        }}
+        onToggleSound={() => setSoundEnabled((prev) => !prev)}
+        onToggleSos={() => {
+          setSosMode((prev) => {
+            playSound('alert');
+            speakText(!prev ? 'Emergency SOS activated' : 'Emergency SOS deactivated');
+            return !prev;
+          });
+        }}
+        onSnapshot={() => playSound('beep')}
+        onPulseBuzzer={() => {
+          overrideHardwareActuator(true, 'RED');
+          setTimeout(() => overrideHardwareActuator(false, 'GREEN'), 3000);
+        }}
+        onPoliceLed={() => overrideHardwareActuator(null, 'POLICE')}
+        onResetActuators={resetHardwareActuators}
       />
     </div>
   );

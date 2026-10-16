@@ -367,3 +367,17 @@ body {
   box-shadow: 0 0 15px -3px rgba(255, 23, 68, 0.3);
 }
 
+/* ── Print Styles for Forensic Dossier ─────────────────────────────────────────── */
+@media print {
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+  .tactical-grid-bg {
+    background: #ffffff !important;
+  }
+  header, main, .print\:hidden {
+    display: none !important;
+  }
+}
+

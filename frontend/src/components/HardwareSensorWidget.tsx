@@ -1,5 +1,5 @@
 import React from 'react';
-import { Cpu, Mic, Activity, Thermometer, Droplets, Volume2, Zap } from 'lucide-react';
+import { Cpu, Mic, Activity, Thermometer, Droplets, Volume2, Zap, Wrench } from 'lucide-react';
 
 export interface HardwareSensorWidgetProps {
   temperature: number;
@@ -18,6 +18,8 @@ export interface HardwareSensorWidgetProps {
   heatStressIndex?: number;
   latencyMs?: number;
   deviceId?: string;
+  onOpenSelfTest?: () => void;
+  onOverrideActuator?: (buzzer: boolean | null, led: string | null) => void;
 }
 
 export const HardwareSensorWidget: React.FC<HardwareSensorWidgetProps> = ({
@@ -35,6 +37,8 @@ export const HardwareSensorWidget: React.FC<HardwareSensorWidgetProps> = ({
   heatStressIndex = 24.8,
   latencyMs = 12.0,
   deviceId = 'ESP32-S3-01',
+  onOpenSelfTest,
+  onOverrideActuator,
 }) => {
   // Acoustic dB bar calculation (30dB min, 110dB max)
   const dbPct = Math.min(100, Math.max(0, ((noiseDb - 30) / (110 - 30)) * 100));
@@ -107,6 +111,16 @@ export const HardwareSensorWidget: React.FC<HardwareSensorWidgetProps> = ({
 
         <div className="flex items-center gap-1.5 text-[10px] font-mono">
           <span className="text-zinc-500">{latencyMs.toFixed(0)}ms</span>
+          {onOpenSelfTest && (
+            <button
+              onClick={onOpenSelfTest}
+              className="px-2 py-0.5 rounded text-[9px] font-mono font-bold bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 hover:bg-cyan-500/25 transition-all flex items-center gap-1 shadow-[0_0_8px_rgba(0,224,255,0.15)]"
+              title="Run ESP32-S3 Multi-Sensor Hardware Diagnostic Benchmark"
+            >
+              <Wrench size={10} />
+              <span>TEST</span>
+            </button>
+          )}
           <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${
             sensorHealth === 'OPTIMAL'
               ? 'text-emerald-400 bg-emerald-500/10 border border-emerald-500/20'
@@ -120,39 +134,74 @@ export const HardwareSensorWidget: React.FC<HardwareSensorWidgetProps> = ({
       </div>
 
       {/* ── Physical Actuators State: RGB LED & Buzzer ── */}
-      <div className="grid grid-cols-2 gap-2 bg-black/40 p-2 rounded-xl border border-white/[0.05]">
-        {/* RGB Status LED */}
-        <div className="flex items-center gap-2">
-          <div className="relative flex items-center justify-center w-5 h-5 rounded-full bg-zinc-950 border border-white/20 shadow-inner">
-            <span className={`w-3 h-3 rounded-full ${ledStyle.bg} ${ledStyle.glow} transition-colors duration-300 animate-pulse`} />
-            <span className="absolute inset-0 rounded-full border border-white/10 pointer-events-none" />
+      <div className="flex flex-col gap-1.5 bg-black/40 p-2 rounded-xl border border-white/[0.05]">
+        <div className="grid grid-cols-2 gap-2">
+          {/* RGB Status LED */}
+          <div className="flex items-center gap-2">
+            <div className="relative flex items-center justify-center w-5 h-5 rounded-full bg-zinc-950 border border-white/20 shadow-inner">
+              <span className={`w-3 h-3 rounded-full ${ledStyle.bg} ${ledStyle.glow} transition-colors duration-300 animate-pulse`} />
+              <span className="absolute inset-0 rounded-full border border-white/10 pointer-events-none" />
+            </div>
+            <div>
+              <div className="text-[9px] font-mono text-zinc-400 uppercase">RGB LED</div>
+              <div className="text-[11px] font-mono font-bold text-zinc-200">
+                {ledStyle.text}
+              </div>
+            </div>
           </div>
-          <div>
-            <div className="text-[9px] font-mono text-zinc-400 uppercase">RGB LED</div>
-            <div className="text-[11px] font-mono font-bold text-zinc-200">
-              {ledStyle.text}
+
+          {/* Active Buzzer State */}
+          <div className="flex items-center gap-2">
+            <div className={`w-6 h-6 rounded-md flex items-center justify-center transition-all ${
+              buzzerState
+                ? 'bg-rose-500/20 text-rose-400 border border-rose-500/40 shadow-[0_0_10px_rgba(244,63,94,0.5)] animate-bounce'
+                : 'bg-white/[0.04] text-zinc-400 border border-white/[0.06]'
+            }`}>
+              <Volume2 size={13} />
+            </div>
+            <div>
+              <div className="text-[9px] font-mono text-zinc-400 uppercase">BUZZER</div>
+              <div className={`text-[11px] font-mono font-bold ${
+                buzzerState ? 'text-rose-400' : 'text-zinc-300'
+              }`}>
+                {buzzerState ? 'TRIGGERED' : 'ARMED'}
+              </div>
             </div>
           </div>
         </div>
 
-        {/* Active Buzzer State */}
-        <div className="flex items-center gap-2">
-          <div className={`w-6 h-6 rounded-md flex items-center justify-center transition-all ${
-            buzzerState
-              ? 'bg-rose-500/20 text-rose-400 border border-rose-500/40 shadow-[0_0_10px_rgba(244,63,94,0.5)] animate-bounce'
-              : 'bg-white/[0.04] text-zinc-400 border border-white/[0.06]'
-          }`}>
-            <Volume2 size={13} />
-          </div>
-          <div>
-            <div className="text-[9px] font-mono text-zinc-400 uppercase">BUZZER</div>
-            <div className={`text-[11px] font-mono font-bold ${
-              buzzerState ? 'text-rose-400' : 'text-zinc-300'
-            }`}>
-              {buzzerState ? 'TRIGGERED' : 'ARMED'}
+        {/* Quick Actuator Override Bar */}
+        {onOverrideActuator && (
+          <div className="pt-1 border-t border-white/[0.04] flex items-center justify-between text-[9px] font-mono">
+            <span className="text-zinc-500 uppercase">Actuator Dispatch:</span>
+            <div className="flex items-center gap-1">
+              <button
+                onClick={() => {
+                  onOverrideActuator(true, 'RED');
+                  setTimeout(() => onOverrideActuator(false, 'GREEN'), 3000);
+                }}
+                className="px-1.5 py-0.5 rounded bg-rose-500/15 border border-rose-500/30 text-rose-300 hover:bg-rose-500/25 transition-colors font-semibold"
+                title="Trigger 3-second acoustic alarm burst"
+              >
+                PULSE
+              </button>
+              <button
+                onClick={() => onOverrideActuator(null, 'POLICE')}
+                className="px-1.5 py-0.5 rounded bg-cyan-500/15 border border-cyan-500/30 text-cyan-300 hover:bg-cyan-500/25 transition-colors font-semibold"
+                title="Override LED to police emergency strobe"
+              >
+                STROBE
+              </button>
+              <button
+                onClick={() => onOverrideActuator(false, 'AUTO')}
+                className="px-1.5 py-0.5 rounded bg-white/[0.04] border border-white/10 text-zinc-400 hover:text-white transition-colors"
+                title="Restore automatic AI-fused closed loop control"
+              >
+                AUTO
+              </button>
             </div>
           </div>
-        </div>
+        )}
       </div>
 
       {/* ── Acoustic & Motion Telemetry ── */}

@@ -163,6 +163,15 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
                     processor.stop_recording()
                 elif action == "set_geofence":
                     processor.set_geofence(cmd_data.get("points", []))
+                elif action == "hardware_override":
+                    buzzer = cmd_data.get("buzzer")
+                    led = cmd_data.get("led")
+                    esp32_manager.override_actuators(buzzer=buzzer, led=led)
+                elif action == "hardware_reset":
+                    esp32_manager.reset_overrides()
+                elif action == "hardware_selftest":
+                    report = esp32_manager.run_self_test()
+                    await websocket.send_json({"type": "selftest_result", "report": report})
             except WebSocketDisconnect:
                 break
             except Exception:
