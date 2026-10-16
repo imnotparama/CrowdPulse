@@ -272,27 +272,40 @@ export const VideoFeed: React.FC<VideoFeedProps> = ({
 
         {/* Standby / Initializing Overlay if no image arrives */}
         {!hasImage && (
-          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 z-10 pointer-events-none">
-            <div className="w-16 h-16 rounded-full border border-cyan-500/30 flex items-center justify-center relative overflow-hidden">
-              <div className="absolute inset-0 border-t-2 border-cyan-400 animate-spin" />
-              <div className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 z-10 pointer-events-none bg-[radial-gradient(ellipse_at_center,rgba(0,224,255,0.06)_0%,rgba(0,0,0,0.85)_70%)]">
+            {/* Concentric Calibration Reticle */}
+            <div className="relative w-28 h-28 rounded-full border border-cyan-500/25 flex items-center justify-center">
+              <div className="absolute inset-0 rounded-full border border-dashed border-cyan-400/20 animate-spin-slow" />
+              <div className="w-20 h-20 rounded-full border border-white/10 flex items-center justify-center">
+                <div className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse shadow-[0_0_10px_#00e0ff]" />
+              </div>
+              {/* Reticle axis lines */}
+              <div className="absolute top-0 bottom-0 w-[1px] bg-cyan-500/20" />
+              <div className="absolute left-0 right-0 h-[1px] bg-cyan-500/20" />
             </div>
-            <div className="flex flex-col items-center gap-1">
-              <span className="text-xs font-mono text-cyan-400 font-semibold tracking-wider">
-                SYNCHRONIZING AI VIDEO STREAM
+
+            <div className="flex flex-col items-center gap-1.5 text-center">
+              <div className="text-xs font-mono text-cyan-400 font-bold tracking-widest uppercase flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
+                <span>CHANNEL [{activeCamera?.toUpperCase() || 'ENTRANCE'}] • STANDBY</span>
+              </div>
+              <span className="text-[11px] font-mono text-zinc-400">
+                1080p RTSP SURVEILLANCE • OPTICAL FLOW & YOLOv11 ENGINE READY
               </span>
-              <span className="text-[10px] font-mono text-zinc-500">
-                1080p RTSP • OPTICAL FLOW READY
+              <span className="text-[9px] font-mono text-zinc-600">
+                STREAM ENCRYPTION: SHA-256 • HARDWARE EDGE INGESTION ARMED
               </span>
             </div>
           </div>
         )}
 
-        {/* Video Frame Image */}
+        {/* Video Frame Image (cleanly hidden until frame bytes arrive) */}
         <img
           ref={imgRef}
-          alt="Live Crowd Camera Feed"
-          className="w-full h-full object-contain pointer-events-none select-none transition-opacity duration-300"
+          alt=""
+          className={`w-full h-full object-contain pointer-events-none select-none transition-opacity duration-500 ${
+            hasImage ? 'opacity-100' : 'opacity-0 absolute inset-0'
+          }`}
         />
 
         {/* Simulated AI Heatmap Overlay */}

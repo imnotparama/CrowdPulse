@@ -1,5 +1,5 @@
 import React from 'react';
-import { Users, AlertTriangle, ShieldCheck, Wifi, Activity, ArrowUpRight, Thermometer, Droplets, Mic, Zap, Cpu } from 'lucide-react';
+import { Users, AlertTriangle, ShieldCheck, Wifi, Activity, Cpu } from 'lucide-react';
 
 interface StatusCardsRowProps {
   count: number;
@@ -63,325 +63,192 @@ export const StatusCardsRow: React.FC<StatusCardsRowProps> = ({
   humidity = 52.0,
   noiseDb = 58.0,
   motionDetected = false,
-  fusionConfidence = 0.94,
-  sensorStatus = 'OPTIMAL',
   hardwareStatus = 'SIMULATED',
 }) => {
   const getDensityPill = (val: number) => {
-    if (val > 0.5) return <span className="pill-glowing-critical">CRITICAL</span>;
-    if (val > 0.3) return <span className="pill-glowing-warning">WARNING</span>;
-    if (val > 0.15) return <span className="pill-glowing-warning">ELEVATED</span>;
-    return <span className="pill-glowing-safe">OPTIMAL</span>;
+    if (val > 0.5) return <span className="pill-glowing-critical py-0.2 px-2 text-[9px]">CRITICAL</span>;
+    if (val > 0.3) return <span className="pill-glowing-warning py-0.2 px-2 text-[9px]">WARNING</span>;
+    if (val > 0.15) return <span className="pill-glowing-warning py-0.2 px-2 text-[9px]">ELEVATED</span>;
+    return <span className="pill-glowing-safe py-0.2 px-2 text-[9px]">OPTIMAL</span>;
   };
 
-  const getRiskColor = (risk: number) => {
-    if (risk > 70) return '#ff1744';
-    if (risk > 40) return '#ff9800';
-    if (risk > 20) return '#ffc107';
-    return '#00ff88';
+  const getStatusPill = (st: string) => {
+    if (st === 'CRITICAL' || st === 'EVACUATE') return <span className="pill-glowing-critical py-0.2 px-2 text-[9px]">CRITICAL</span>;
+    if (st === 'WARNING') return <span className="pill-glowing-warning py-0.2 px-2 text-[9px]">WARNING</span>;
+    return <span className="pill-glowing-safe py-0.2 px-2 text-[9px]">SAFE</span>;
   };
-
-  const ringColor = getRiskColor(stampedeRisk);
 
   return (
-    <div className="flex flex-col">
-      {/* ── Primary Vision & Density Metrics ── */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
+    <div className="w-full">
+      {/* ── Single Unified Command Telemetry Ribbon ── */}
+      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-2.5">
         {/* 1. People Detected */}
-        <div className="card-level-2 p-3.5 flex flex-col justify-between group hover:border-emerald-500/30 border-t-2 border-t-emerald-500/70 transition-all">
-          <div className="flex items-center justify-between text-zinc-400 mb-1">
-            <div className="flex items-center gap-2 text-xs font-medium tracking-wide">
-              <div className="w-6 h-6 rounded-lg bg-emerald-500/10 border border-emerald-500/25 flex items-center justify-center text-emerald-400">
-                <Users size={12} />
+        <div className="card-level-2 p-2.5 flex flex-col justify-between group hover:border-emerald-500/40 border-t-2 border-t-emerald-500/80 transition-all">
+          <div className="flex items-center justify-between text-zinc-400 mb-0.5">
+            <div className="flex items-center gap-1.5 text-xs font-medium">
+              <div className="w-5 h-5 rounded-md bg-emerald-500/10 border border-emerald-500/25 flex items-center justify-center text-emerald-400">
+                <Users size={11} />
               </div>
-              <span className="font-['Space_Grotesk'] font-semibold text-zinc-200">PEOPLE</span>
+              <span className="font-['Space_Grotesk'] font-bold text-[11px] text-zinc-200">PEOPLE</span>
             </div>
-            <span className="text-[11px] font-mono text-zinc-400 bg-white/[0.04] px-2.5 py-0.5 rounded-full border border-white/[0.06]">
+            <span className="text-[10px] font-mono text-zinc-400 bg-white/[0.04] px-1.5 py-0.2 rounded border border-white/[0.06]">
               <AnimatedNumber value={capacityPct} decimals={0} />% CAP
             </span>
           </div>
-          <div className="flex items-baseline gap-2 mt-1">
-            <span className="text-2xl lg:text-3xl font-bold font-['Space_Grotesk'] text-white tracking-tight">
+          <div className="flex items-baseline gap-1.5">
+            <span className="text-xl font-bold font-['Space_Grotesk'] text-white tracking-tight">
               <AnimatedNumber value={count} decimals={0} />
             </span>
-            <span className="text-xs font-mono text-zinc-500">/ {maxCapacity}</span>
+            <span className="text-[10px] font-mono text-zinc-500">/ {maxCapacity}</span>
           </div>
           {/* Micro Capacity Gauge */}
-          <div className="w-full h-1 bg-white/[0.05] rounded-full overflow-hidden mt-2">
+          <div className="w-full h-1 bg-white/[0.05] rounded-full overflow-hidden mt-1.5">
             <div
-              className="h-full bg-emerald-400 rounded-full transition-all duration-500 shadow-[0_0_6px_rgba(52,211,153,0.6)]"
+              className="h-full bg-emerald-400 rounded-full transition-all duration-500"
               style={{ width: `${Math.min(100, capacityPct)}%` }}
             />
           </div>
         </div>
 
         {/* 2. Crowd Density */}
-        <div className="card-level-2 p-3.5 flex flex-col justify-between group hover:border-amber-500/30 border-t-2 border-t-amber-500/70 transition-all">
-          <div className="flex items-center justify-between text-zinc-400 mb-1">
-            <div className="flex items-center gap-2 text-xs font-medium tracking-wide">
-              <div className="w-6 h-6 rounded-lg bg-amber-500/10 border border-amber-500/25 flex items-center justify-center text-amber-400">
-                <AlertTriangle size={12} />
+        <div className="card-level-2 p-2.5 flex flex-col justify-between group hover:border-amber-500/40 border-t-2 border-t-amber-500/80 transition-all">
+          <div className="flex items-center justify-between text-zinc-400 mb-0.5">
+            <div className="flex items-center gap-1.5 text-xs font-medium">
+              <div className="w-5 h-5 rounded-md bg-amber-500/10 border border-amber-500/25 flex items-center justify-center text-amber-400">
+                <AlertTriangle size={11} />
               </div>
-              <span className="font-['Space_Grotesk'] font-semibold text-zinc-200">DENSITY</span>
+              <span className="font-['Space_Grotesk'] font-bold text-[11px] text-zinc-200">DENSITY</span>
             </div>
             {getDensityPill(density)}
           </div>
-          <div className="flex items-baseline gap-2 mt-1">
-            <span className="text-2xl lg:text-3xl font-bold font-['Space_Grotesk'] text-white tracking-tight">
+          <div className="flex items-baseline gap-1.5">
+            <span className="text-xl font-bold font-['Space_Grotesk'] text-white tracking-tight">
               <AnimatedNumber value={density} decimals={2} />
             </span>
-            <span className="text-xs font-mono text-zinc-500">idx</span>
+            <span className="text-[10px] font-mono text-zinc-500">idx</span>
           </div>
           {/* Micro Density Bar */}
-          <div className="w-full h-1 bg-white/[0.05] rounded-full overflow-hidden mt-2">
+          <div className="w-full h-1 bg-white/[0.05] rounded-full overflow-hidden mt-1.5">
             <div
               className={`h-full rounded-full transition-all duration-500 ${
-                density > 0.4
-                  ? 'bg-rose-500 shadow-[0_0_6px_rgba(244,63,94,0.6)]'
-                  : density > 0.25
-                  ? 'bg-amber-400 shadow-[0_0_6px_rgba(251,191,36,0.6)]'
-                  : 'bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.6)]'
+                density > 0.4 ? 'bg-rose-500' : density > 0.25 ? 'bg-amber-400' : 'bg-emerald-400'
               }`}
               style={{ width: `${Math.min(100, (density / 0.6) * 100)}%` }}
             />
           </div>
         </div>
 
-        {/* 3. Stampede Risk with Mini Circular Ring */}
-        <div className="card-level-2 p-3.5 flex flex-col justify-between group hover:border-rose-500/30 border-t-2 border-t-rose-500/70 transition-all">
-          <div className="flex items-center justify-between text-zinc-400 mb-1">
-            <div className="flex items-center gap-2 text-xs font-medium tracking-wide">
-              <div className="w-6 h-6 rounded-lg bg-rose-500/10 border border-rose-500/25 flex items-center justify-center text-rose-400">
-                <ShieldCheck size={12} />
+        {/* 3. Threat Index */}
+        <div className="card-level-2 p-2.5 flex flex-col justify-between group hover:border-rose-500/40 border-t-2 border-t-rose-500/80 transition-all">
+          <div className="flex items-center justify-between text-zinc-400 mb-0.5">
+            <div className="flex items-center gap-1.5 text-xs font-medium">
+              <div className="w-5 h-5 rounded-md bg-rose-500/10 border border-rose-500/25 flex items-center justify-center text-rose-400">
+                <ShieldCheck size={11} />
               </div>
-              <span className="font-['Space_Grotesk'] font-semibold text-zinc-200">RISK</span>
+              <span className="font-['Space_Grotesk'] font-bold text-[11px] text-zinc-200">THREAT</span>
             </div>
-            <span className={status === 'CRITICAL' ? 'pill-glowing-critical' : status === 'WARNING' ? 'pill-glowing-warning' : 'pill-glowing-safe'}>
-              <span className="w-1.5 h-1.5 rounded-full bg-current" />
-              {status}
+            {getStatusPill(status)}
+          </div>
+          <div className="flex items-baseline gap-1.5">
+            <span className="text-xl font-bold font-['Space_Grotesk'] text-white tracking-tight">
+              <AnimatedNumber value={stampedeRisk} decimals={0} />
             </span>
+            <span className="text-[10px] font-mono text-zinc-500">/ 100</span>
           </div>
-          <div className="flex items-center justify-between mt-1">
-            <div className="flex items-baseline gap-1">
-              <span className="text-2xl lg:text-3xl font-bold font-['Space_Grotesk'] text-white tracking-tight">
-                <AnimatedNumber value={stampedeRisk} decimals={0} />
-              </span>
-              <span className="text-xs font-mono text-zinc-500">/ 100</span>
-            </div>
-            {/* Mini Ring Progress */}
-            <div className="relative w-8 h-8 flex items-center justify-center">
-              <svg className="w-8 h-8 -rotate-90">
-                <circle
-                  cx="16"
-                  cy="16"
-                  r="13"
-                  fill="none"
-                  stroke="rgba(255, 255, 255, 0.08)"
-                  strokeWidth="3"
-                />
-                <circle
-                  cx="16"
-                  cy="16"
-                  r="13"
-                  fill="none"
-                  stroke={ringColor}
-                  strokeWidth="3"
-                  strokeDasharray={2 * Math.PI * 13}
-                  strokeDashoffset={2 * Math.PI * 13 - (Math.min(stampedeRisk, 100) / 100) * (2 * Math.PI * 13)}
-                  strokeLinecap="round"
-                  className="transition-all duration-700 ease-out"
-                  style={{ filter: `drop-shadow(0 0 4px ${ringColor})` }}
-                />
-              </svg>
-            </div>
-          </div>
-          {/* Micro Risk Bar */}
-          <div className="w-full h-1 bg-white/[0.05] rounded-full overflow-hidden mt-2">
+          {/* Micro Threat Bar */}
+          <div className="w-full h-1 bg-white/[0.05] rounded-full overflow-hidden mt-1.5">
             <div
-              className="h-full rounded-full transition-all duration-500"
-              style={{ width: `${Math.min(100, stampedeRisk)}%`, backgroundColor: ringColor }}
+              className={`h-full rounded-full transition-all duration-500 ${
+                stampedeRisk > 50 ? 'bg-rose-500' : stampedeRisk > 25 ? 'bg-amber-400' : 'bg-emerald-400'
+              }`}
+              style={{ width: `${Math.min(100, stampedeRisk)}%` }}
             />
           </div>
         </div>
 
-        {/* 4. Connected Devices */}
-        <div className="card-level-2 p-3.5 flex flex-col justify-between group hover:border-cyan-500/30 border-t-2 border-t-cyan-500/70 transition-all">
-          <div className="flex items-center justify-between text-zinc-400 mb-1">
-            <div className="flex items-center gap-2 text-xs font-medium tracking-wide">
-              <div className="w-6 h-6 rounded-lg bg-cyan-500/10 border border-cyan-500/25 flex items-center justify-center text-cyan-400">
-                <Wifi size={12} />
+        {/* 4. Crowd Velocity */}
+        <div className="card-level-2 p-2.5 flex flex-col justify-between group hover:border-purple-500/40 border-t-2 border-t-purple-500/80 transition-all">
+          <div className="flex items-center justify-between text-zinc-400 mb-0.5">
+            <div className="flex items-center gap-1.5 text-xs font-medium">
+              <div className="w-5 h-5 rounded-md bg-purple-500/10 border border-purple-500/25 flex items-center justify-center text-purple-400">
+                <Activity size={11} />
               </div>
-              <span className="font-['Space_Grotesk'] font-semibold text-zinc-200">DEVICES</span>
+              <span className="font-['Space_Grotesk'] font-bold text-[11px] text-zinc-200">VELOCITY</span>
             </div>
-            <span className="text-[10px] font-mono text-cyan-400 bg-cyan-500/10 px-2.5 py-0.5 rounded-full flex items-center gap-1 border border-cyan-500/20">
-              <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
-              {activeWifiZones > 0 ? `${activeWifiZones} ZONES` : 'PROBE'}
-            </span>
-          </div>
-          <div className="flex items-baseline gap-2 mt-1">
-            <span className="text-2xl lg:text-3xl font-bold font-['Space_Grotesk'] text-white tracking-tight">
-              <AnimatedNumber value={wifiProbeCount} decimals={0} />
-            </span>
-            <span className="text-xs font-mono text-zinc-500">probed</span>
-          </div>
-          {/* Micro Probe Bar */}
-          <div className="w-full h-1 bg-white/[0.05] rounded-full overflow-hidden mt-2">
-            <div
-              className="h-full bg-cyan-400 rounded-full transition-all duration-500 shadow-[0_0_6px_rgba(0,224,255,0.6)]"
-              style={{ width: `${Math.min(100, (wifiProbeCount / 40) * 100)}%` }}
-            />
-          </div>
-        </div>
-
-        {/* 5. Flow Velocity */}
-        <div className="card-level-2 p-3.5 flex flex-col justify-between group hover:border-purple-500/30 border-t-2 border-t-purple-500/70 transition-all">
-          <div className="flex items-center justify-between text-zinc-400 mb-1">
-            <div className="flex items-center gap-2 text-xs font-medium tracking-wide">
-              <div className="w-6 h-6 rounded-lg bg-purple-500/10 border border-purple-500/25 flex items-center justify-center text-purple-400">
-                <Activity size={12} />
-              </div>
-              <span className="font-['Space_Grotesk'] font-semibold text-zinc-200">SPEED</span>
-            </div>
-            <span className="text-[10px] font-mono text-emerald-400 flex items-center gap-0.5 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20 font-semibold">
-              <ArrowUpRight size={11} />
+            <span className="text-[9px] font-mono text-purple-300 bg-purple-500/10 px-1.5 py-0.2 rounded border border-purple-500/20">
               PACED
             </span>
           </div>
-          <div className="flex items-baseline gap-2 mt-1">
-            <span className="text-2xl lg:text-3xl font-bold font-['Space_Grotesk'] text-white tracking-tight">
-              <AnimatedNumber value={avgVelocity / 25} decimals={1} />
+          <div className="flex items-baseline gap-1.5">
+            <span className="text-xl font-bold font-['Space_Grotesk'] text-white tracking-tight">
+              {(avgVelocity / 25).toFixed(1)}
             </span>
-            <span className="text-xs font-mono text-zinc-500">m/s</span>
+            <span className="text-[10px] font-mono text-zinc-500">m/s</span>
           </div>
           {/* Micro Speed Bar */}
-          <div className="w-full h-1 bg-white/[0.05] rounded-full overflow-hidden mt-2">
+          <div className="w-full h-1 bg-white/[0.05] rounded-full overflow-hidden mt-1.5">
             <div
-              className="h-full bg-purple-400 rounded-full transition-all duration-500 shadow-[0_0_6px_rgba(192,132,252,0.6)]"
-              style={{ width: `${Math.min(100, (avgVelocity / 60) * 100)}%` }}
+              className="h-full bg-purple-400 rounded-full transition-all duration-500"
+              style={{ width: `${Math.min(100, (avgVelocity / 50) * 100)}%` }}
             />
           </div>
         </div>
-      </div>
 
-      {/* ── Hardware Layer Telemetry Cards (Extended v4.1) ── */}
-      <div className="flex items-center justify-between mt-3 mb-1.5 px-0.5">
-        <div className="flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse shadow-[0_0_8px_rgba(0,224,255,0.8)]" />
-          <span className="text-[10px] font-mono uppercase tracking-wider text-zinc-300 font-bold">
-            Physical Edge Sensing Node
-          </span>
-          <span className="text-[9px] font-mono text-zinc-500">| AM2302 • INMP441 • PIR DUAL</span>
-        </div>
-        <span className="text-[9px] font-mono text-cyan-400 bg-cyan-500/10 px-2 py-0.5 rounded-full border border-cyan-500/20 font-semibold">
-          MULTI-SENSOR AI TELEMETRY
-        </span>
-      </div>
-
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
-        {/* 1. Temperature */}
-        <div className="card-level-2 p-2.5 flex items-center justify-between group hover:border-rose-500/30 transition-all">
-          <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded-md bg-rose-500/10 border border-rose-500/20 flex items-center justify-center text-rose-400">
-              <Thermometer size={12} />
-            </div>
-            <div>
-              <div className="text-[10px] font-['Space_Grotesk'] font-semibold text-zinc-400">TEMP</div>
-              <div className="text-sm font-bold font-mono text-white tracking-tight">
-                <AnimatedNumber value={temperature} decimals={1} />°C
+        {/* 5. Wi-Fi Probes */}
+        <div className="card-level-2 p-2.5 flex flex-col justify-between group hover:border-cyan-500/40 border-t-2 border-t-cyan-500/80 transition-all">
+          <div className="flex items-center justify-between text-zinc-400 mb-0.5">
+            <div className="flex items-center gap-1.5 text-xs font-medium">
+              <div className="w-5 h-5 rounded-md bg-cyan-500/10 border border-cyan-500/25 flex items-center justify-center text-cyan-400">
+                <Wifi size={11} />
               </div>
+              <span className="font-['Space_Grotesk'] font-bold text-[11px] text-zinc-200">DEVICES</span>
             </div>
+            <span className="text-[9px] font-mono text-cyan-300 bg-cyan-500/10 px-1.5 py-0.2 rounded border border-cyan-500/20">
+              {activeWifiZones} ZONES
+            </span>
           </div>
-          <span className="text-[8px] font-mono text-zinc-500 bg-white/[0.04] px-1.5 py-0.5 rounded">AM2302</span>
+          <div className="flex items-baseline gap-1.5">
+            <span className="text-xl font-bold font-['Space_Grotesk'] text-white tracking-tight">
+              {wifiProbeCount}
+            </span>
+            <span className="text-[10px] font-mono text-zinc-500">probed</span>
+          </div>
+          {/* Micro Probes Bar */}
+          <div className="w-full h-1 bg-white/[0.05] rounded-full overflow-hidden mt-1.5">
+            <div
+              className="h-full bg-cyan-400 rounded-full transition-all duration-500"
+              style={{ width: `${Math.min(100, wifiProbeCount * 10)}%` }}
+            />
+          </div>
         </div>
 
-        {/* 2. Humidity */}
-        <div className="card-level-2 p-2.5 flex items-center justify-between group hover:border-cyan-500/30 transition-all">
-          <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded-md bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400">
-              <Droplets size={12} />
-            </div>
-            <div>
-              <div className="text-[10px] font-['Space_Grotesk'] font-semibold text-zinc-400">HUMIDITY</div>
-              <div className="text-sm font-bold font-mono text-white tracking-tight">
-                <AnimatedNumber value={humidity} decimals={0} />%
+        {/* 6. Physical Edge Sensing Node */}
+        <div className="card-level-2 p-2.5 flex flex-col justify-between group hover:border-sky-500/40 border-t-2 border-t-sky-500/80 transition-all">
+          <div className="flex items-center justify-between text-zinc-400 mb-0.5">
+            <div className="flex items-center gap-1.5 text-xs font-medium">
+              <div className="w-5 h-5 rounded-md bg-sky-500/10 border border-sky-500/25 flex items-center justify-center text-sky-400">
+                <Cpu size={11} />
               </div>
+              <span className="font-['Space_Grotesk'] font-bold text-[11px] text-zinc-200">EDGE IOT</span>
             </div>
+            <span className="text-[9px] font-mono text-emerald-400 bg-emerald-500/10 px-1.5 py-0.2 rounded border border-emerald-500/20">
+              {hardwareStatus}
+            </span>
           </div>
-          <span className="text-[8px] font-mono text-zinc-500 bg-white/[0.04] px-1.5 py-0.5 rounded">RH</span>
-        </div>
-
-        {/* 3. Noise */}
-        <div className="card-level-2 p-2.5 flex items-center justify-between group hover:border-amber-500/30 transition-all">
-          <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded-md bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
-              <Mic size={12} />
-            </div>
-            <div>
-              <div className="text-[10px] font-['Space_Grotesk'] font-semibold text-zinc-400">NOISE</div>
-              <div className="text-sm font-bold font-mono text-white tracking-tight">
-                <AnimatedNumber value={noiseDb} decimals={0} /> dB
-              </div>
-            </div>
+          <div className="flex items-baseline gap-1 text-[11px] font-mono font-bold text-zinc-100">
+            <span>{temperature.toFixed(1)}°C</span>
+            <span className="text-zinc-600">•</span>
+            <span>{humidity.toFixed(0)}%</span>
+            <span className="text-zinc-600">•</span>
+            <span className="text-cyan-300">{noiseDb.toFixed(0)}dB</span>
           </div>
-          <span className={`text-[9px] font-mono font-semibold px-1.5 py-0.5 rounded ${
-            noiseDb > 80 ? 'text-rose-400 bg-rose-500/10' : 'text-emerald-400 bg-emerald-500/10'
-          }`}>
-            {noiseDb > 80 ? 'HIGH' : 'NORM'}
-          </span>
-        </div>
-
-        {/* 4. Motion */}
-        <div className="card-level-2 p-2.5 flex items-center justify-between group hover:border-amber-500/30 transition-all">
-          <div className="flex items-center gap-2">
-            <div className={`w-6 h-6 rounded-md flex items-center justify-center ${
-              motionDetected ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30' : 'bg-white/[0.05] text-zinc-400'
-            }`}>
-              <Activity size={12} className={motionDetected ? 'animate-pulse' : ''} />
-            </div>
-            <div>
-              <div className="text-[10px] font-['Space_Grotesk'] font-semibold text-zinc-400">MOTION</div>
-              <div className="text-xs font-bold font-mono text-white tracking-tight">
-                {motionDetected ? 'ACTIVE' : 'STATIC'}
-              </div>
-            </div>
+          <div className="text-[9px] font-mono text-zinc-500 flex items-center justify-between mt-1.5">
+            <span className="flex items-center gap-1">
+              <span className={`w-1.5 h-1.5 rounded-full ${motionDetected ? 'bg-amber-400 animate-pulse' : 'bg-zinc-600'}`} />
+              <span>{motionDetected ? 'MOTION' : 'PIR STATIC'}</span>
+            </span>
+            <span className="text-emerald-400">OPTIMAL</span>
           </div>
-          <span className={`w-2 h-2 rounded-full ${motionDetected ? 'bg-amber-400 animate-ping' : 'bg-zinc-600'}`} />
-        </div>
-
-        {/* 5. Fusion Confidence */}
-        <div className="card-level-2 p-2.5 flex items-center justify-between group hover:border-cyan-500/30 transition-all">
-          <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded-md bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400">
-              <Zap size={12} />
-            </div>
-            <div>
-              <div className="text-[10px] font-['Space_Grotesk'] font-semibold text-zinc-400">CONFIDENCE</div>
-              <div className="text-sm font-bold font-mono text-cyan-400 tracking-tight">
-                <AnimatedNumber value={fusionConfidence * 100} decimals={0} />%
-              </div>
-            </div>
-          </div>
-          <span className="text-[9px] font-mono text-cyan-400 bg-cyan-500/10 px-1.5 py-0.5 rounded border border-cyan-500/20 font-bold">
-            FUSED
-          </span>
-        </div>
-
-        {/* 6. Sensor Status */}
-        <div className="card-level-2 p-2.5 flex items-center justify-between group hover:border-emerald-500/30 transition-all">
-          <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded-md bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
-              <Cpu size={12} />
-            </div>
-            <div>
-              <div className="text-[10px] font-['Space_Grotesk'] font-semibold text-zinc-400">HARDWARE</div>
-              <div className="text-xs font-bold font-mono text-emerald-400 tracking-tight">
-                {sensorStatus}
-              </div>
-            </div>
-          </div>
-          <span className="text-[8px] font-mono text-zinc-500 bg-white/[0.04] px-1.5 py-0.5 rounded uppercase">
-            {hardwareStatus}
-          </span>
         </div>
       </div>
     </div>

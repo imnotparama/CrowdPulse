@@ -552,6 +552,8 @@ function App() {
               temperature={stats.temperature}
               humidity={stats.humidity}
               noiseDb={stats.noise_db}
+              flowDirection={stats.flow_direction}
+              capacityPct={stats.capacity_pct}
             />
 
             <HardwareSensorWidget

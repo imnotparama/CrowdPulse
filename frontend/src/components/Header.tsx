@@ -45,30 +45,26 @@ export const Header: React.FC<HeaderProps> = ({
     <header className="glass-header sticky top-0 z-40 px-5 h-14 flex items-center justify-between">
       {/* ── Left: Logo & Platform Identity ── */}
       <div className="flex items-center gap-3">
-        <div className="w-8 h-8 rounded-lg bg-red-500/10 border border-red-500/30 flex items-center justify-center text-red-500 shadow-[0_0_15px_rgba(255,23,68,0.2)]">
+        <div className="w-8 h-8 rounded-lg bg-red-500/10 border border-red-500/30 flex items-center justify-center text-red-500 shadow-[0_0_15px_rgba(255,23,68,0.25)] flex-shrink-0">
           <Activity size={18} />
         </div>
-        <div>
+        <div className="flex flex-col">
           <div className="flex items-center gap-2">
             <span className="text-base font-bold font-['Space_Grotesk'] text-white tracking-tight">
               Crowd<span className="text-red-500">Pulse</span>
             </span>
-            <span className="text-[9px] font-mono font-bold uppercase tracking-wider text-cyan-400 bg-cyan-500/10 px-2 py-0.5 rounded-full border border-cyan-500/25 shadow-[0_0_10px_rgba(0,224,255,0.15)]">
-              ENTERPRISE v4.1
-            </span>
-            <span className="hidden md:inline-flex items-center gap-1 text-[9px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/25">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-              AI FUSION ENGINE
+            <span className="text-[10px] font-mono font-semibold text-cyan-400 bg-cyan-500/10 px-2 py-0.5 rounded border border-cyan-500/25">
+              v4.1 ENTERPRISE
             </span>
           </div>
-          <p className="text-[10px] text-zinc-400 font-sans hidden sm:block">
-            Autonomous Crowd Intelligence & Multi-Sensor Edge Platform
+          <p className="text-[10px] text-zinc-400 font-mono hidden sm:block">
+            Tactical Operations Command & Edge Sensing
           </p>
         </div>
       </div>
 
       {/* ── Center: Active Telemetry Pill ── */}
-      <div className="hidden lg:flex items-center gap-3 bg-white/[0.03] px-3.5 py-1 rounded-full border border-white/[0.06] text-xs font-mono">
+      <div className="hidden lg:flex items-center gap-3 bg-black/40 backdrop-blur-md px-4 py-1.5 rounded-xl border border-white/[0.08] text-xs font-mono shadow-inner">
         <span className="flex items-center gap-1.5 text-emerald-400 font-semibold">
           <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
           {wsConnected ? 'ONLINE' : 'RECONNECTING'}
@@ -78,11 +74,11 @@ export const Header: React.FC<HeaderProps> = ({
           SYS {status}
         </span>
         <span className="text-zinc-600">|</span>
-        <span className="text-zinc-400">5 FEEDS</span>
+        <span className="text-zinc-400">5 CHANNELS</span>
         <span className="text-zinc-600">|</span>
-        <span className="flex items-center gap-1 text-cyan-400">
+        <span className="flex items-center gap-1.5 text-cyan-400">
           <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
-          ESP32-S3 IoT
+          ESP32-S3 NODE
         </span>
         {activeWifiZones > 0 && (
           <>

@@ -66,7 +66,7 @@ export const RiskGauge: React.FC<RiskGaugeProps> = ({
   const Icon = theme.icon;
 
   // 180-degree semicircle math
-  const radius = 42;
+  const radius = 38;
   const circumference = Math.PI * radius; // Half-circle circumference
   const strokeDashoffset = circumference - (clampedRisk / 100) * circumference;
 
@@ -76,7 +76,7 @@ export const RiskGauge: React.FC<RiskGaugeProps> = ({
   const envPct = environmentRisk !== undefined ? Math.min(100, environmentRisk) : 0;
 
   return (
-    <div className="card-level-2 p-4 flex flex-col items-center justify-between relative overflow-hidden group">
+    <div className="card-level-2 p-3.5 flex flex-col items-center justify-between relative overflow-hidden group">
       {/* Subtle top indicator line matching status theme */}
       <div
         className="absolute top-0 inset-x-0 h-[2px] opacity-70 transition-all duration-500"
@@ -86,11 +86,11 @@ export const RiskGauge: React.FC<RiskGaugeProps> = ({
       />
 
       {/* Header */}
-      <div className="w-full flex items-center justify-between pb-1.5 border-b border-white/[0.06]">
+      <div className="w-full flex items-center justify-between pb-2 border-b border-white/[0.06]">
         <div className="flex items-center gap-1.5">
           <Icon className="w-3.5 h-3.5" style={{ color: theme.color }} />
           <h3 className="text-xs font-semibold tracking-wider text-zinc-300 uppercase font-['Space_Grotesk']">
-            Risk Index
+            Threat Index
           </h3>
         </div>
         <span className={theme.pillClass}>
@@ -99,40 +99,40 @@ export const RiskGauge: React.FC<RiskGaugeProps> = ({
         </span>
       </div>
 
-      {/* Semicircle 180° Gauge */}
-      <div className="relative w-36 h-20 my-2 flex items-end justify-center overflow-hidden">
+      {/* Semicircle Gauge (Properly scaled with zero clipping) */}
+      <div className="relative w-44 h-24 my-1 flex items-end justify-center">
         {/* Soft ambient radial glow under the arc */}
         <div
-          className="absolute -bottom-10 w-28 h-20 rounded-full blur-xl pointer-events-none transition-all duration-700 opacity-60"
+          className="absolute bottom-2 w-32 h-14 rounded-full blur-xl pointer-events-none transition-all duration-700 opacity-40"
           style={{ backgroundColor: theme.glowColor }}
         />
 
-        <svg className="w-36 h-36 relative z-10" viewBox="0 0 100 100">
+        <svg className="w-full h-full relative z-10" viewBox="0 0 100 58">
           <defs>
             <linearGradient id="semicircleGrad" x1="0%" y1="0%" x2="100%" y2="0%">
               <stop offset="0%" stopColor={theme.gradientStart} />
               <stop offset="100%" stopColor={theme.gradientEnd} />
             </linearGradient>
             <filter id="gaugeArcGlow" x="-20%" y="-20%" width="140%" height="140%">
-              <feDropShadow dx="0" dy="0" stdDeviation="2.5" floodColor={theme.color} floodOpacity="0.6" />
+              <feDropShadow dx="0" dy="0" stdDeviation="1.5" floodColor={theme.color} floodOpacity="0.5" />
             </filter>
           </defs>
 
-          {/* Background Half Arc */}
+          {/* Background Track */}
           <path
-            d="M 8 50 A 42 42 0 0 1 92 50"
+            d="M 12 50 A 38 38 0 0 1 88 50"
             fill="none"
             stroke="rgba(255, 255, 255, 0.08)"
-            strokeWidth="8"
+            strokeWidth="7"
             strokeLinecap="round"
           />
 
-          {/* Progress Half Arc with Glow */}
+          {/* Active Progress Arc */}
           <path
-            d="M 8 50 A 42 42 0 0 1 92 50"
+            d="M 12 50 A 38 38 0 0 1 88 50"
             fill="none"
             stroke="url(#semicircleGrad)"
-            strokeWidth="8"
+            strokeWidth="7"
             strokeDasharray={circumference}
             strokeDashoffset={strokeDashoffset}
             strokeLinecap="round"
@@ -142,14 +142,14 @@ export const RiskGauge: React.FC<RiskGaugeProps> = ({
         </svg>
 
         {/* Center Readout inside Arc */}
-        <div className="absolute bottom-0 flex flex-col items-center justify-center z-10">
+        <div className="absolute bottom-1 flex flex-col items-center justify-center z-10">
           <div className="flex items-baseline gap-0.5">
             <span className="text-3xl font-bold font-['Space_Grotesk'] text-white tracking-tight">
               {clampedRisk.toFixed(0)}
             </span>
             <span className="text-xs font-mono text-zinc-400 font-bold">%</span>
           </div>
-          <span className="text-[9px] font-mono text-zinc-500 uppercase tracking-wider">
+          <span className="text-[9px] font-mono text-zinc-400 uppercase tracking-wider font-semibold">
             {combinedThreatScore !== undefined ? 'FUSED THREAT' : 'STAMPEDE RISK'}
           </span>
         </div>

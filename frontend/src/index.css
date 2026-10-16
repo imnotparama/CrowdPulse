@@ -16,7 +16,7 @@
 
   --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
   --font-display: 'Space Grotesk', 'Inter', sans-serif;
-  --font-mono: 'Share Tech Mono', monospace;
+  --font-mono: 'JetBrains Mono', 'Share Tech Mono', monospace;
 
   --animate-pulse-slow: pulse-slow 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
   --animate-radar-ping: radar-ping 2s cubic-bezier(0, 0, 0.2, 1) infinite;
