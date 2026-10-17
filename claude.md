@@ -357,57 +357,41 @@ Level-3 bottom scrubber tracking operational events with historical replay capab
 
 ---
 
-### 3.6 `components/RiskGauge.tsx` (Semicircle Arc Gauge)
-Level-2 risk visualization using a non-clipped 180° semicircle arc.
-
-#### Mathematical Arc Calculation:
-```typescript
-const radius = 38;
-const circumference = Math.PI * radius; // 180-degree half circumference
-const strokeDashoffset = circumference - (clampedRisk / 100) * circumference;
-```
-- Rendered via SVG path: `M 12 50 A 38 38 0 0 1 88 50` within `viewBox="0 0 100 58"` container (`w-44 h-24`).
-- Ambient radial drop-shadow filter (`#gaugeArcGlow`) providing sleek neon glow without SVG boundary clipping.
-- Includes segmented sub-indicators: Density (40%), Physical Pressure (35%), Agitation (25%), Environment Risk (ESP32-S3 AM2302 & INMP441 fusion).
+### 3.6 `components/RiskGauge.tsx` (Apple Health Circular Activity Ring)
+Risk analysis widget modeled after Apple Health and Apple Watch activity rings:
+- Circular SVG progress ring with size $130\text{px}$, stroke width $8\text{px}$, and radius $61\text{px}$.
+- Centered score readout: large numerical display (e.g. `18 / 100`) with uppercase `Risk Score` caption.
+- Minimal status pill badge (`SAFE` `#1ED760`, `ELEVATED` `#F5A524`, `CRITICAL` `#FF4D5A`).
+- Footnote metadata: Neural fusion confidence (e.g. `94%`) and human-readable situation rationale (*"Normal pedestrian movement • No overcrowding detected"*).
 
 ---
 
-### 3.7 `components/LiveMap.tsx` (Tactical Radar Map)
-Integrated tactical Leaflet map rendered with CartoDB Dark Matter tiles.
-
-#### Features:
-- Evacuation Routes: Dashed green (`#00ff88`) polylines guiding flow to North, East, and South exits.
-- **Camera FOV Cone**: Animated semi-transparent cyan circle showing the active camera's viewing field from the Command Hub.
-- **Drone Aerial Unit**: Autonomous drone icon interpolating toward alert coordinates using a distance step loop:
-  $$d_{\text{lat}} = \text{target}_{\text{lat}} - \text{curr}_{\text{lat}}, \quad \text{step} = 0.05 \times d_{\text{lat}}$$
-- Pulsing red alert zones indicating geographical alert clusters.
+### 3.7 `components/HardwareSensorWidget.tsx` (Environment & Hardware Cards)
+- **`EnvironmentCard`**: Merges Temperature (AM2302), Humidity (AM2302), and Acoustic Noise (INMP441 MEMS) into one clean 3-column widget with subtle icons, avoiding redundant split cards.
+- **`HardwareCard`**: Consolidates ESP32-S3 Edge Node connectivity, system latency (ms), YOLOv11 throughput (FPS), and Wi-Fi stability into one elegant status widget with diagnostic benchmark launcher.
 
 ---
 
-### 3.8 `components/ActiveAlertsPanel.tsx` (Alert Management & Empty State)
-Level-1 alert triage component.
-- Active alert: Displays pulsing Crimson card (`card-level-1-alert`) with priority tags and severity level.
-- **Warm Empty State**: Displays friendly operational status (*"✓ All sectors operating normally. Last incident resolved 28 minutes ago (Gate A queue cleared). Coverage: 100% active"*).
-- Resolved incidents log with resolution timestamps.
+### 3.8 `components/ActiveAlertsPanel.tsx` (Pristine Alerts State)
+- When no active alerts: Displays a clean Apple-style card with a green checkmark (`#1ED760`), *"No Active Incidents"*, and subtext *"All surveillance zones operating normally • Coverage 100% active"*.
+- When an incident triggers: Displays an urgent banner with `#FF4D5A` accent, severity tag, and clear operator dispatch messaging.
 
 ---
 
-### 3.9 `components/EvidenceLocker.tsx` (Secure Evidence Vault Modal)
-Cryptographic modal for reviewing and exporting captured security video sessions.
-
-#### Hold to Decrypt Mechanism:
-- Prevents accidental exposure of security footage.
-- Operator must hold mouse down / touch for ~1 second.
-- `holdTimer`: Increments `decryptProgress` by $+5\%$ every 50ms.
-- Releasing button early automatically drains progress by $-3\%$ every 50ms.
-- Reaching $100\%$ unlocks the HTML5 `<video>` player and direct footage export link.
+### 3.9 `components/AIInsightsCard.tsx` (Apple Health Style AI Summary)
+- Displays concise, bulleted health insights:
+  - *• Crowd density is low across all monitored sectors*
+  - *• Risk level is safe with smooth egress velocity*
+  - *• Physical edge sensors operating within normal baselines*
+  - *• No abnormal behavioral patterns detected*
+- Features segmented time-horizon pills (`+3m`, `+5m`, `+10m`) for predictive trend forecasting.
 
 ---
 
-### 3.10 `components/LiveStatusPanel.tsx`, `StatusCardsRow.tsx` & `Header.tsx`
-- **`StatusCardsRow.tsx`**: Single-row 6-module command telemetry ribbon consolidating People Detected, Crowd Density, Threat Index, Pedestrian Velocity, Wi-Fi Probes, and ESP32 Edge IoT Node telemetry. Uses smooth micro-interpolated `AnimatedNumber` transitions.
-- **`LiveStatusPanel.tsx`**: Left column Sector Flow & Access monitoring module. Displays aggregate venue load bar, per-sector clearance table (Main Entrance, South Turnstiles, Gate A, Emergency Exits), vector flow orientation, egress pacing, and evacuation clearance estimates without repeating top ribbon KPIs.
-- **`Header.tsx`**: Executive SOC header displaying brand identity, `v4.1 ENTERPRISE`, active telemetry glass pill (`ONLINE`, `SYS SAFE`, `5 CHANNELS`, `ESP32-S3 NODE`), CPU and latency vitals, direct `VAULT` and `AUDIT` triggers, and `EMERGENCY SOS` button.
+### 3.10 `components/StatusCardsRow.tsx`, `VideoFeed.tsx` & `Header.tsx`
+- **`Header.tsx`**: Minimalist navigation bar containing only CrowdPulse wordmark, connection dot, system status pill, clock, emergency SOS button, and user profile avatar with clean dropdown utility menu.
+- **`StatusCardsRow.tsx`**: 4-column Apple widget grid displaying Icon, Metric, Large Number (34-44px), and Tiny Status for People, Density, Flow Velocity, and Active Devices.
+- **`VideoFeed.tsx`**: Hero centerpiece occupying 45–50% of the viewport with minimal chrome, 20px corners, segmented channel selector pills (*Entrance, Exit, Food Court, Gate A, Parking*), small `YOLOv11 • 30 FPS` badge, and floating frosted glass control pill.
 
 ---
 
