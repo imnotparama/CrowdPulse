@@ -1,12 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Sparkles } from 'lucide-react';
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { Sparkles, ChevronDown } from 'lucide-react';
 
 import Header from './components/Header';
 import StatusCardsRow from './components/StatusCardsRow';
-import LiveStatusPanel from './components/LiveStatusPanel';
 import AIInsightsCard from './components/AIInsightsCard';
-import RecentEvents from './components/RecentEvents';
 import VideoFeed from './components/VideoFeed';
 import Timeline from './components/Timeline';
 import RiskGauge from './components/RiskGauge';
@@ -15,7 +12,7 @@ import ActiveAlertsPanel from './components/ActiveAlertsPanel';
 import AIChatSidebar from './components/AIChatSidebar';
 import EvidenceLocker from './components/EvidenceLocker';
 import SplashScreen from './components/SplashScreen';
-import HardwareSensorWidget from './components/HardwareSensorWidget';
+import { EnvironmentCard, HardwareCard } from './components/HardwareSensorWidget';
 import HardwareSelfTestModal, { type SelfTestReport } from './components/HardwareSelfTestModal';
 import ForensicReportModal from './components/ForensicReportModal';
 import CommandPalette from './components/CommandPalette';
@@ -89,23 +86,7 @@ function App() {
     fusion_narrative: 'Nominal conditions across all visual and environmental channels.',
   });
 
-  const [history, setHistory] = useState<
-    { time: string; density: number; predicted_density: number; agitation: number }[]
-  >([
-    { time: '14:20', density: 0.08, predicted_density: 0.09, agitation: 18 },
-    { time: '14:22', density: 0.11, predicted_density: 0.12, agitation: 20 },
-    { time: '14:24', density: 0.14, predicted_density: 0.15, agitation: 26 },
-    { time: '14:26', density: 0.12, predicted_density: 0.13, agitation: 22 },
-  ]);
-
-  const [recentEvents, setRecentEvents] = useState<
-    { id: string; type: 'success' | 'warning' | 'info'; title: string; time: string }[]
-  >([
-    { id: '1', type: 'success', title: 'Camera Connected & Calibrated', time: 'Just now' },
-    { id: '2', type: 'success', title: 'Crowd Density Normal (Level A)', time: '1m ago' },
-    { id: '3', type: 'warning', title: 'Queue Forming at Gate A', time: '3m ago' },
-    { id: '4', type: 'info', title: 'AI Farneback Optical Flow Active', time: '5m ago' },
-  ]);
+  const [showTacticalTray, setShowTacticalTray] = useState(false);
 
   const [alertHistory, setAlertHistory] = useState<AlertItem[]>([]);
   const [persistentAlert, setPersistentAlert] = useState<AlertItem | null>(null);
@@ -276,15 +257,7 @@ function App() {
           { lat: 13.0827 + (Math.random() - 0.5) * 0.01, lng: 80.2707 + (Math.random() - 0.5) * 0.01, type: 'density' },
         ]);
 
-        setRecentEvents((prev) => [
-          {
-            id: String(Date.now()),
-            type: data.crowd_alert.severity === 'CRITICAL' ? 'warning' : 'info',
-            title: `${data.crowd_alert.type} in Zone ${data.crowd_alert.id}`,
-            time: 'Just now',
-          },
-          ...prev.slice(0, 4),
-        ]);
+
       }
 
       if (!shouldUpdateStats) return;
@@ -342,21 +315,7 @@ function App() {
       const activeCount = Object.values(zones).filter((z) => z.status === 'ACTIVE').length;
       setActiveWifiZones(activeCount);
 
-      setHistory((prev) => {
-        const newHistory = [
-          ...prev,
-          {
-            time: new Date((data.timestamp || Date.now() / 1000) * 1000).toLocaleTimeString([], {
-              hour: '2-digit',
-              minute: '2-digit',
-            }),
-            density: data.density ?? 0,
-            predicted_density: data.predicted_density || data.density || 0,
-            agitation: data.agitation || 0,
-          },
-        ];
-        return newHistory.slice(-20);
-      });
+
     };
 
     ws.current.onclose = () => {
@@ -516,8 +475,9 @@ function App() {
       />
 
       {/* ── Main Viewport Container ── */}
-      <main className="flex-1 max-w-[1920px] w-full mx-auto p-3 lg:p-4 flex flex-col gap-3">
-        {/* ── Top Status Cards Row ── */}
+      {/* ── Main Viewport Container (Apple × Samsung Design Language) ── */}
+      <main className="flex-1 max-w-[1720px] w-full mx-auto px-6 py-6 lg:px-8 lg:py-8 flex flex-col gap-6">
+        {/* 1. KPI Overview (Apple Widgets: People, Density, Flow Velocity, Active Devices) */}
         <StatusCardsRow
           count={stats.count}
           maxCapacity={stats.max_capacity}
@@ -528,190 +488,110 @@ function App() {
           wifiProbeCount={stats.wifi_probe_count}
           activeWifiZones={activeWifiZones}
           avgVelocity={stats.avg_velocity}
-          temperature={stats.temperature}
-          humidity={stats.humidity}
-          noiseDb={stats.noise_db}
-          motionDetected={stats.motion_detected}
-          fusionConfidence={stats.fusion_confidence}
-          sensorStatus={stats.sensor_health}
-          hardwareStatus={stats.hardware_status}
         />
 
-        {/* ── Three-Column Main Layout: Left (~280px) | Center Hero (~70% flex-1) | Right (~310px) ── */}
-        <div className="flex flex-col lg:flex-row gap-3.5 flex-1 min-h-0">
-          {/* ── LEFT COLUMN: Scannable Live Status, Hardware IoT Node, AI Insights (Level 1), Recent Events ── */}
-          <div className="w-full lg:w-[280px] xl:w-[300px] flex-shrink-0 flex flex-col gap-3">
-            <LiveStatusPanel
-              count={stats.count}
-              maxCapacity={stats.max_capacity}
-              density={stats.density}
-              stampedeRisk={stats.stampede_risk}
-              wifiProbeCount={stats.wifi_probe_count}
-              avgVelocity={stats.avg_velocity}
-              status={stats.status}
-              temperature={stats.temperature}
-              humidity={stats.humidity}
-              noiseDb={stats.noise_db}
-              flowDirection={stats.flow_direction}
-              capacityPct={stats.capacity_pct}
-            />
+        {/* 2. Centerpiece: Large Live Camera Feed (occupying around 45–50% of the dashboard) */}
+        <div className="w-full">
+          <VideoFeed
+            imageRef={imageRef}
+            isRecording={stats.recording}
+            visionMode={stats.mode}
+            activeCamera={activeCamera}
+            soundEnabled={soundEnabled}
+            status={sosMode ? 'EVACUATE' : stats.status}
+            flowDirection={stats.flow_direction}
+            sectors={stats.sectors}
+            onToggleRecord={() => sendCommand(stats.recording ? 'stop_recording' : 'start_recording')}
+            onToggleVision={() =>
+              sendCommand('set_mode', { mode: stats.mode === 'OPTICAL' ? 'thermal' : 'optical' })
+            }
+            onToggleSound={() => setSoundEnabled(!soundEnabled)}
+            onSetGeofence={(points) => sendCommand('set_geofence', { points })}
+            onSelectCamera={handleCameraChange}
+          />
+        </div>
 
-            <HardwareSensorWidget
-              temperature={stats.temperature}
-              humidity={stats.humidity}
-              noiseDb={stats.noise_db}
-              noiseIndex={stats.noise_index}
-              motionDetected={stats.motion_detected}
-              motionActivityScore={stats.motion_activity_score}
-              sensorHealth={stats.sensor_health}
-              hardwareStatus={stats.hardware_status}
-              buzzerState={stats.buzzer_state}
-              ledState={stats.led_state}
-              environmentRisk={stats.environment_risk}
-              fusionConfidence={stats.fusion_confidence}
-              sensorScore={stats.sensor_score}
-              heatStressIndex={stats.heat_stress_index}
-              onOpenSelfTest={runHardwareSelfTest}
-              onOverrideActuator={overrideHardwareActuator}
-            />
+        {/* 3. Operational Intelligence & Telemetry: Risk, AI Summary, Environment, Hardware */}
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 w-full">
+          {/* Card 1: Risk Analysis (Large circular activity ring, 18/100, SAFE, 94% confidence, reason) */}
+          <RiskGauge
+            risk={stats.stampede_risk}
+            status={sosMode ? 'EVACUATE' : stats.status}
+            environmentRisk={stats.environment_risk}
+            combinedThreatScore={stats.combined_threat_score}
+            fusionConfidence={stats.fusion_confidence}
+          />
 
-            <AIInsightsCard
-              density={stats.density}
-              stampedeRisk={stats.stampede_risk}
-              timeToCritical={stats.time_to_critical}
-              status={stats.status}
-              fusionNarrative={stats.fusion_narrative}
-              fusionConfidence={stats.fusion_confidence}
-            />
+          {/* Card 2: AI Summary Card (Apple Health insights bullet points, horizon toggle) */}
+          <AIInsightsCard
+            density={stats.density}
+            stampedeRisk={stats.stampede_risk}
+            timeToCritical={stats.time_to_critical}
+            status={stats.status}
+            fusionNarrative={stats.fusion_narrative}
+            fusionConfidence={stats.fusion_confidence}
+          />
 
-            <RecentEvents events={recentEvents} />
-          </div>
+          {/* Card 3: Environmental Card (Temp, Humidity, Noise merged with subtle icons) */}
+          <EnvironmentCard
+            temperature={stats.temperature}
+            humidity={stats.humidity}
+            noiseDb={stats.noise_db}
+          />
 
-          {/* ── CENTER COLUMN: Dominant Camera Hero (~70%) & Bottom Event Timeline ── */}
-          <div className="flex-1 min-w-0 flex flex-col gap-3">
-            <div className="flex-1 flex flex-col min-h-[480px] lg:min-h-[580px]">
-              <VideoFeed
-                imageRef={imageRef}
-                isRecording={stats.recording}
-                visionMode={stats.mode}
-                activeCamera={activeCamera}
-                soundEnabled={soundEnabled}
-                status={sosMode ? 'EVACUATE' : stats.status}
-                flowDirection={stats.flow_direction}
-                sectors={stats.sectors}
-                onToggleRecord={() => sendCommand(stats.recording ? 'stop_recording' : 'start_recording')}
-                onToggleVision={() =>
-                  sendCommand('set_mode', { mode: stats.mode === 'OPTICAL' ? 'thermal' : 'optical' })
-                }
-                onToggleSound={() => setSoundEnabled(!soundEnabled)}
-                onSetGeofence={(points) => sendCommand('set_geofence', { points })}
-                onSelectCamera={handleCameraChange}
-              />
-            </div>
+          {/* Card 4: Hardware Card (ESP32 Connected, Latency 24ms, 30 FPS, WiFi Stable, Diagnostics) */}
+          <HardwareCard
+            hardwareStatus={stats.hardware_status}
+            latencyMs={24}
+            fps={30}
+            onOpenSelfTest={runHardwareSelfTest}
+          />
+        </div>
 
-            {/* Bottom Event Timeline */}
-            <Timeline currentDensity={stats.density} />
-          </div>
+        {/* 4. Alerts (✓ No Active Incidents) */}
+        <ActiveAlertsPanel activeAlert={persistentAlert} alertHistory={alertHistory} />
 
-          {/* ── RIGHT COLUMN: Mini Analytics, Semicircle Risk, Tactical Map, Active Alerts, Assistant ── */}
-          <div className="w-full lg:w-[290px] xl:w-[320px] flex-shrink-0 flex flex-col gap-3">
-            {/* Semicircle Risk Gauge */}
-            <RiskGauge
-              risk={stats.stampede_risk}
-              status={stats.status}
-              environmentRisk={stats.environment_risk}
-              combinedThreatScore={stats.combined_threat_score}
-            />
-
-            {/* Active Alerts Panel */}
-            <ActiveAlertsPanel activeAlert={persistentAlert} alertHistory={alertHistory} />
-
-            {/* Mini Analytics Chart */}
-            <div className="card-level-2 p-3 flex flex-col h-[170px]">
-              <div className="flex items-center justify-between pb-1 border-b border-white/[0.06]">
-                <h3 className="text-xs font-semibold tracking-wider text-zinc-300 uppercase font-['Space_Grotesk']">
-                  Density Telemetry
-                </h3>
-                <div className="flex items-center gap-2 text-[9px] font-mono">
-                  <span className="flex items-center gap-1 text-red-400">
-                    <span className="w-1.5 h-1.5 rounded-full bg-red-500" /> Density
-                  </span>
-                  <span className="flex items-center gap-1 text-amber-400">
-                    <span className="w-1.5 h-1.5 rounded-full bg-amber-400" /> Agitation
-                  </span>
-                </div>
-              </div>
-
-              <div className="flex-1 w-full min-h-0 pt-2">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={history}>
-                    <defs>
-                      <linearGradient id="densityGrad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#ff3b3b" stopOpacity={0.4} />
-                        <stop offset="95%" stopColor="#ff3b3b" stopOpacity={0.0} />
-                      </linearGradient>
-                      <linearGradient id="agitGrad" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#ffc107" stopOpacity={0.25} />
-                        <stop offset="95%" stopColor="#ffc107" stopOpacity={0.0} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="2 2" stroke="rgba(255,255,255,0.04)" vertical={false} />
-                    <XAxis dataKey="time" hide />
-                    <YAxis hide domain={[0, 'auto']} />
-                    <Tooltip
-                      contentStyle={{
-                        backgroundColor: '#121215',
-                        borderColor: 'rgba(255,255,255,0.1)',
-                        fontSize: '11px',
-                        borderRadius: '8px',
-                      }}
-                      itemStyle={{ color: '#fff' }}
-                    />
-                    <Area
-                      type="monotone"
-                      dataKey="agitation"
-                      stroke="#ffc107"
-                      fill="url(#agitGrad)"
-                      strokeWidth={1.5}
-                    />
-                    <Area
-                      type="monotone"
-                      dataKey="density"
-                      stroke="#ff3b3b"
-                      fill="url(#densityGrad)"
-                      strokeWidth={2}
-                    />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
-            </div>
-
-            {/* Tactical Map */}
-            <div className="h-[185px]">
-              <LiveMap alerts={mapAlerts} />
-            </div>
-
-            {/* AI Assistant Drawer Trigger */}
+        {/* 5. Understated Secondary Operations Tray (Tactical Map & Timeline Scrubber) */}
+        <div className="flex flex-col gap-4 mt-2">
+          <div className="flex justify-center">
             <button
-              onClick={() => {
-                setChatOpen(!chatOpen);
-                playSound('click');
-              }}
-              className="card-level-2 p-3 flex items-center justify-between text-xs font-semibold font-['Space_Grotesk'] text-zinc-200 hover:border-cyan-500/40 hover:text-white transition-all group shadow-sm"
+              onClick={() => setShowTacticalTray(!showTacticalTray)}
+              className="px-4 py-2 rounded-full bg-[#141417] hover:bg-[#1C1C21] text-xs font-medium text-[#B9B9C5] hover:text-white border border-white/[0.05] transition-all flex items-center gap-2"
             >
-              <div className="flex items-center gap-2">
-                <div className="w-6 h-6 rounded-md bg-cyan-500/10 flex items-center justify-center text-cyan-400 group-hover:bg-cyan-500/20 transition-colors">
-                  <Sparkles size={13} />
-                </div>
-                <span>CROWDPULSE AI ASSISTANT</span>
-              </div>
-              <span className="text-[10px] font-mono text-cyan-400 bg-cyan-500/10 px-2 py-0.5 rounded-full border border-cyan-500/20 font-bold">
-                {chatOpen ? 'OPEN' : 'ASK'}
-              </span>
+              <span>{showTacticalTray ? 'Hide Secondary Tactical Tools' : 'Show Secondary Tactical Radar & Incident Timeline'}</span>
+              <ChevronDown size={14} className={`transform transition-transform ${showTacticalTray ? 'rotate-180' : ''}`} />
             </button>
           </div>
+
+          {showTacticalTray && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 w-full">
+              <Timeline currentDensity={stats.density} />
+              <div className="h-[280px] card-apple p-4 flex flex-col">
+                <div className="flex items-center justify-between pb-2 border-b border-white/[0.05]">
+                  <span className="text-sm font-medium text-white">Perimeter Radar</span>
+                  <span className="text-xs text-[#B9B9C5]">CartoDB Dark Matter</span>
+                </div>
+                <div className="flex-1 min-h-0 rounded-xl overflow-hidden mt-2">
+                  <LiveMap alerts={mapAlerts} />
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </main>
+
+      {/* ── Floating Minimalist AI Assistant Pill ── */}
+      <button
+        onClick={() => {
+          setChatOpen(!chatOpen);
+          playSound('click');
+        }}
+        className="fixed bottom-6 right-6 z-30 bg-[#141417] hover:bg-[#1C1C21] text-white px-4 py-2.5 rounded-full border border-white/[0.08] shadow-2xl flex items-center gap-2.5 transition-all text-xs font-medium"
+      >
+        <Sparkles size={15} strokeWidth={1.75} className="text-[#00B5FF]" />
+        <span>CrowdPulse Assistant</span>
+        {chatOpen && <span className="w-1.5 h-1.5 rounded-full bg-[#1ED760]" />}
+      </button>
 
       {/* ── AI Assistant Sidebar ── */}
       <AIChatSidebar
