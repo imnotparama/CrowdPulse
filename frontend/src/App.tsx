@@ -556,15 +556,15 @@ function App() {
           <div className="flex justify-center">
             <button
               onClick={() => setShowTacticalTray(!showTacticalTray)}
-              className="px-4 py-2 rounded-full bg-[#141417] hover:bg-[#1C1C21] text-xs font-medium text-[#B9B9C5] hover:text-white border border-white/[0.05] transition-all flex items-center gap-2"
+              className="px-4 py-2 rounded-full bg-[#141417] hover:bg-[#1C1C21] text-xs font-medium text-[#B9B9C5] hover:text-white border border-white/[0.05] transition-all duration-200 transform hover:scale-[1.02] active:scale-95 flex items-center gap-2 shadow-sm"
             >
               <span>{showTacticalTray ? 'Hide Secondary Tactical Tools' : 'Show Secondary Tactical Radar & Incident Timeline'}</span>
-              <ChevronDown size={14} className={`transform transition-transform ${showTacticalTray ? 'rotate-180' : ''}`} />
+              <ChevronDown size={14} className={`transform transition-transform duration-300 ${showTacticalTray ? 'rotate-180' : ''}`} />
             </button>
           </div>
 
           {showTacticalTray && (
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 w-full">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 w-full animate-apple-in">
               <Timeline currentDensity={stats.density} />
               <div className="h-[280px] card-apple p-4 flex flex-col">
                 <div className="flex items-center justify-between pb-2 border-b border-white/[0.05]">
@@ -586,11 +586,11 @@ function App() {
           setChatOpen(!chatOpen);
           playSound('click');
         }}
-        className="fixed bottom-6 right-6 z-30 bg-[#141417] hover:bg-[#1C1C21] text-white px-4 py-2.5 rounded-full border border-white/[0.08] shadow-2xl flex items-center gap-2.5 transition-all text-xs font-medium"
+        className="fixed bottom-6 right-6 z-30 bg-[#141417] hover:bg-[#1C1C21] text-white px-4 py-2.5 rounded-full border border-white/[0.08] shadow-2xl flex items-center gap-2.5 transition-all duration-300 transform hover:scale-105 active:scale-95 text-xs font-medium"
       >
         <Sparkles size={15} strokeWidth={1.75} className="text-[#00B5FF]" />
         <span>CrowdPulse Assistant</span>
-        {chatOpen && <span className="w-1.5 h-1.5 rounded-full bg-[#1ED760]" />}
+        {chatOpen && <span className="w-2 h-2 rounded-full bg-[#1ED760] animate-beacon-green" />}
       </button>
 
       {/* ── AI Assistant Sidebar ── */}

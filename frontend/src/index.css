@@ -53,16 +53,25 @@ body {
 }
 
 /* ── Apple × Samsung Flagship Widget Cards ───────────────────────────────────── */
-/* Core Widget: Silence is premium. Soft shadow, 20px corners, 1px subtle border */
+/* Core Widget: Silence is premium. Soft shadow, 20px corners, 1px subtle border, physics hover lift */
 .card-apple {
   background: #141417;
   border: 1px solid rgba(255, 255, 255, 0.05);
   border-radius: 20px;
   box-shadow: 0 8px 30px rgba(0, 0, 0, 0.35);
-  transition: border-color 0.25s ease, transform 0.2s ease;
+  transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), 
+              border-color 0.25s ease, 
+              box-shadow 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: transform, box-shadow;
 }
 .card-apple:hover {
-  border-color: rgba(255, 255, 255, 0.10);
+  border-color: rgba(255, 255, 255, 0.12);
+  transform: translateY(-2px);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.5);
+}
+.card-apple:active {
+  transform: translateY(0px) scale(0.995);
+  transition-duration: 0.15s;
 }
 
 /* Elevated Sub-surface (nested chips, input bars, sub-items) */
@@ -70,6 +79,11 @@ body {
   background: #1C1C21;
   border: 1px solid rgba(255, 255, 255, 0.04);
   border-radius: 14px;
+  transition: background-color 0.2s ease, border-color 0.2s ease;
+}
+.card-sub-surface:hover {
+  background: #222228;
+  border-color: rgba(255, 255, 255, 0.08);
 }
 
 /* Backward compatibility aliases matching Apple design */
@@ -81,20 +95,22 @@ body {
   border: 1px solid rgba(255, 255, 255, 0.05);
   border-radius: 20px;
   box-shadow: 0 8px 30px rgba(0, 0, 0, 0.35);
-  transition: border-color 0.2s ease;
+  transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.25s ease;
 }
 .card-level-1:hover,
 .card-level-2:hover,
 .card-level-3:hover,
 .card-enterprise:hover {
-  border-color: rgba(255, 255, 255, 0.10);
+  border-color: rgba(255, 255, 255, 0.12);
+  transform: translateY(-2px);
 }
 
 .card-level-1-alert {
   background: #141417;
-  border: 1px solid rgba(255, 77, 90, 0.25);
+  border: 1px solid rgba(255, 77, 90, 0.3);
   border-radius: 20px;
-  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 8px 30px rgba(255, 77, 90, 0.15);
+  animation: pulse-border-subtle 3s ease-in-out infinite;
 }
 
 /* Header & Floating Glass */
@@ -103,14 +119,20 @@ body {
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  transition: background-color 0.3s ease;
 }
 
 .glass-pill {
-  background: rgba(28, 28, 33, 0.8);
+  background: rgba(28, 28, 33, 0.82);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.07);
   border-radius: 9999px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.glass-pill:hover {
+  border-color: rgba(255, 255, 255, 0.14);
 }
 
 /* Pure Deep Background without noisy grids */
@@ -130,6 +152,7 @@ body {
   background: rgba(30, 215, 96, 0.1);
   color: #1ED760;
   border: 1px solid rgba(30, 215, 96, 0.2);
+  transition: all 0.2s ease;
 }
 
 .pill-glowing-warning {
@@ -143,6 +166,7 @@ body {
   background: rgba(245, 165, 36, 0.1);
   color: #F5A524;
   border: 1px solid rgba(245, 165, 36, 0.2);
+  transition: all 0.2s ease;
 }
 
 .pill-glowing-critical {
@@ -156,9 +180,10 @@ body {
   background: rgba(255, 77, 90, 0.12);
   color: #FF4D5A;
   border: 1px solid rgba(255, 77, 90, 0.25);
+  transition: all 0.2s ease;
 }
 
-/* Buttons */
+/* Interactive Buttons */
 .btn-icon-soc {
   display: inline-flex;
   align-items: center;
@@ -168,23 +193,90 @@ body {
   background: #1C1C21;
   border: 1px solid rgba(255, 255, 255, 0.05);
   color: #B9B9C5;
-  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), 
+              background-color 0.2s ease, 
+              color 0.2s ease, 
+              border-color 0.2s ease;
 }
 .btn-icon-soc:hover {
   background: #24242A;
   color: #FFFFFF;
-  border-color: rgba(255, 255, 255, 0.12);
+  border-color: rgba(255, 255, 255, 0.14);
+  transform: scale(1.05);
+}
+.btn-icon-soc:active {
+  transform: scale(0.95);
 }
 
-/* Subtle micro-animations */
-@keyframes pulse-subtle {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.4; }
+/* ── Apple-Style Micro-Animation Keyframes ───────────────────────────────────── */
+/* Gentle, physics-based entrance fade-up */
+@keyframes apple-enter {
+  0% {
+    opacity: 0;
+    transform: translateY(12px) scale(0.99);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
-.animate-pulse-subtle {
-  animation: pulse-subtle 2.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+.animate-apple-in {
+  animation: apple-enter 0.65s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
+
+.delay-100 { animation-delay: 0.08s; }
+.delay-200 { animation-delay: 0.16s; }
+.delay-300 { animation-delay: 0.24s; }
+.delay-400 { animation-delay: 0.32s; }
+.delay-500 { animation-delay: 0.40s; }
+
+/* Rhythmic Breathing Live Beacon Pulse */
+@keyframes beacon-breathe-green {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 0.85;
+    box-shadow: 0 0 0 0 rgba(30, 215, 96, 0.4);
+  }
+  50% {
+    transform: scale(1.2);
+    opacity: 1;
+    box-shadow: 0 0 6px 2px rgba(30, 215, 96, 0.3);
+  }
+}
+.animate-beacon-green {
+  animation: beacon-breathe-green 2.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes beacon-breathe-cyan {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 0.85;
+    box-shadow: 0 0 0 0 rgba(0, 181, 255, 0.4);
+  }
+  50% {
+    transform: scale(1.2);
+    opacity: 1;
+    box-shadow: 0 0 6px 2px rgba(0, 181, 255, 0.3);
+  }
+}
+.animate-beacon-cyan {
+  animation: beacon-breathe-cyan 2.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes pulse-border-subtle {
+  0%, 100% { border-color: rgba(255, 77, 90, 0.25); }
+  50% { border-color: rgba(255, 77, 90, 0.6); }
+}
+
+/* Subtle Acoustic Wave Bar Pulse */
+@keyframes acoustic-wave-1 { 0%, 100% { height: 35%; } 50% { height: 85%; } }
+@keyframes acoustic-wave-2 { 0%, 100% { height: 75%; } 50% { height: 30%; } }
+@keyframes acoustic-wave-3 { 0%, 100% { height: 50%; } 50% { height: 95%; } }
+
+.animate-acoustic-1 { animation: acoustic-wave-1 1.2s ease-in-out infinite; }
+.animate-acoustic-2 { animation: acoustic-wave-2 1.5s ease-in-out infinite 0.2s; }
+.animate-acoustic-3 { animation: acoustic-wave-3 1.3s ease-in-out infinite 0.4s; }
 
 /* Print Styles */
 @media print {

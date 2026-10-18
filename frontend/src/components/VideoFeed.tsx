@@ -122,7 +122,7 @@ export const VideoFeed: React.FC<VideoFeedProps> = ({
   };
 
   return (
-    <div className="card-apple p-4 flex flex-col gap-3 w-full h-full flex-1 min-h-[460px] lg:min-h-[540px]">
+    <div className="card-apple p-4 flex flex-col gap-3 w-full h-full flex-1 min-h-[460px] lg:min-h-[540px] animate-apple-in delay-100">
       {/* ── Top Bar: Segmented Channel Control & Small AI Badge ── */}
       <div className="flex items-center justify-between gap-4">
         {/* Apple-style segmented camera switcher */}
@@ -133,7 +133,7 @@ export const VideoFeed: React.FC<VideoFeedProps> = ({
               <button
                 key={cam.id}
                 onClick={() => onSelectCamera && onSelectCamera(cam.id)}
-                className={`px-3.5 py-1.5 rounded-full text-xs font-medium transition-all duration-200 whitespace-nowrap ${
+                className={`px-3.5 py-1.5 rounded-full text-xs font-medium transition-all duration-200 whitespace-nowrap active:scale-95 ${
                   isActive
                     ? 'bg-[#141417] text-white shadow-sm border border-white/[0.08]'
                     : 'text-[#B9B9C5] hover:text-white'
@@ -145,9 +145,9 @@ export const VideoFeed: React.FC<VideoFeedProps> = ({
           })}
         </div>
 
-        {/* Small AI Badge: YOLOv11 • 30 FPS */}
-        <div className="flex items-center gap-2 bg-[#1C1C21] px-3.5 py-1.5 rounded-full border border-white/[0.05] text-xs font-medium">
-          <span className="w-1.5 h-1.5 rounded-full bg-[#1ED760]" />
+        {/* Small AI Badge: YOLOv11 • 30 FPS with breathing beacon */}
+        <div className="flex items-center gap-2 bg-[#1C1C21] px-3.5 py-1.5 rounded-full border border-white/[0.05] text-xs font-medium shadow-sm">
+          <span className="w-2 h-2 rounded-full bg-[#1ED760] animate-beacon-green" />
           <span className="text-white font-medium">YOLOv11</span>
           <span className="text-[#B9B9C5]">•</span>
           <span className="text-[#B9B9C5] font-mono">{fps || 30} FPS</span>

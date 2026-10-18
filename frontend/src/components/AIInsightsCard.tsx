@@ -47,7 +47,7 @@ export const AIInsightsCard: React.FC<AIInsightsCardProps> = ({
   const bullets = getBulletPoints();
 
   return (
-    <div className="card-apple p-5 flex flex-col justify-between h-full">
+    <div className="card-apple p-5 flex flex-col justify-between h-full animate-apple-in delay-200">
       {/* Header */}
       <div className="flex items-center justify-between pb-3 border-b border-white/[0.05]">
         <div className="flex items-center gap-2">
@@ -61,9 +61,9 @@ export const AIInsightsCard: React.FC<AIInsightsCardProps> = ({
             <button
               key={h}
               onClick={() => setHorizon(h)}
-              className={`px-2.5 py-0.5 rounded-full transition-all ${
+              className={`px-2.5 py-0.5 rounded-full transition-all duration-200 active:scale-95 ${
                 horizon === h
-                  ? 'bg-[#141417] text-white shadow-sm'
+                  ? 'bg-[#141417] text-white shadow-sm border border-white/[0.06]'
                   : 'text-[#B9B9C5] hover:text-white'
               }`}
             >

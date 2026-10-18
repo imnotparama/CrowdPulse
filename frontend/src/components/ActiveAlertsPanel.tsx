@@ -19,12 +19,12 @@ export const ActiveAlertsPanel: React.FC<ActiveAlertsPanelProps> = ({
   alertHistory = [],
 }) => {
   return (
-    <div className="w-full">
+    <div className="w-full animate-apple-in delay-500">
       {activeAlert ? (
         /* Active Alert Banner */
         <div className="card-apple p-5 border-[#FF4D5A]/30 bg-[#141417] flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl bg-[#FF4D5A]/10 border border-[#FF4D5A]/20 flex items-center justify-center text-[#FF4D5A] flex-shrink-0">
+            <div className="w-9 h-9 rounded-xl bg-[#FF4D5A]/10 border border-[#FF4D5A]/20 flex items-center justify-center text-[#FF4D5A] flex-shrink-0 animate-pulse">
               <ShieldAlert size={18} strokeWidth={2} />
             </div>
             <div>
@@ -45,9 +45,9 @@ export const ActiveAlertsPanel: React.FC<ActiveAlertsPanelProps> = ({
         </div>
       ) : (
         /* Clean Apple-style "No Active Incidents" State */
-        <div className="card-apple p-5 flex items-center justify-between">
+        <div className="card-apple p-5 flex items-center justify-between group">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-full bg-[#1ED760]/10 border border-[#1ED760]/20 flex items-center justify-center text-[#1ED760] flex-shrink-0">
+            <div className="w-8 h-8 rounded-full bg-[#1ED760]/10 border border-[#1ED760]/20 flex items-center justify-center text-[#1ED760] flex-shrink-0 transition-transform duration-300 group-hover:scale-110">
               <CheckCircle2 size={16} strokeWidth={2} />
             </div>
             <div>
