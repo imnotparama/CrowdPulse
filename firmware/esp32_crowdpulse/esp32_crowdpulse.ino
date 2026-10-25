@@ -212,19 +212,34 @@ float readMicrophoneDb() {
 
   if (result == ESP_OK && bytes_read > 0) {
     int count = bytes_read / sizeof(int32_t);
+    if (count <= 0) return currentDb;
+
+    // 1. Calculate DC bias offset across buffer
+    int64_t sum = 0;
+    for (int i = 0; i < count; i++) {
+      sum += (samples[i] >> 8);
+    }
+    int32_t mean = (int32_t)(sum / count);
+
+    // 2. Subtract DC bias to isolate true AC acoustic wave vibration
     int64_t sum_squares = 0;
     for (int i = 0; i < count; i++) {
-      int32_t s = samples[i] >> 8;
-      sum_squares += (int64_t)s * s;
+      int32_t ac = (samples[i] >> 8) - mean;
+      sum_squares += (int64_t)ac * ac;
     }
+
     double rms = sqrt((double)sum_squares / (double)count);
-    double db = 40.0;
-    if (rms > 10.0) {
-      db = 20.0 * log10(rms / 100.0) + 40.0;
+
+    // If microphone is disconnected or silent
+    if (rms < 5.0) {
+      return 42.0;
     }
+
+    double db = 20.0 * log10(rms / 25.0) + 40.0;
     if (db < 38.0) db = 38.0;
     if (db > 105.0) db = 105.0;
-    return (float)db;
+
+    return (float)(0.70 * currentDb + 0.30 * db);
   }
   return currentDb;
 }
@@ -422,9 +437,11 @@ void loop() {
     applyActuators("GREEN", false);
   }
 
-  // 7. Automatic Local Safety Threshold (Caution if >85 dB)
+  // 7. Automatic Local Safety Threshold (Caution if >85 dB, recover to Green when <75 dB)
   if (!sosActive && currentDb > 85.0) {
     applyActuators("YELLOW", false);
+  } else if (!sosActive && currentLedColor == "YELLOW" && currentDb < 75.0) {
+    applyActuators("GREEN", false);
   }
 
   // 8. Transmit Telemetry JSON to CrowdPulse Backend (every 500ms)
