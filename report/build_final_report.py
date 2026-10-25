@@ -29,12 +29,42 @@ def generate_complete_report():
     for p in s1.footer.paragraphs:
         p.text = ""
 
+    # Strictly enforce Times New Roman in docDefaults and Normal style
+    style = doc.styles['Normal']
+    style.font.name = 'Times New Roman'
+    normal_rPr = style.element.get_or_add_rPr()
+    rFonts_normal = normal_rPr.get_or_add_rFonts()
+    rFonts_normal.attrib.clear()
+    rFonts_normal.set(qn('w:ascii'), 'Times New Roman')
+    rFonts_normal.set(qn('w:hAnsi'), 'Times New Roman')
+    rFonts_normal.set(qn('w:cs'), 'Times New Roman')
+    rFonts_normal.set(qn('w:eastAsia'), 'Times New Roman')
+
+    # Enforce Times New Roman in docDefaults so every paragraph marker / space inherits it
+    doc_rFonts = doc.styles.element.xpath('//w:docDefaults//w:rFonts')
+    if doc_rFonts:
+        rFonts = doc_rFonts[0]
+        rFonts.attrib.clear()
+        rFonts.set(qn('w:ascii'), 'Times New Roman')
+        rFonts.set(qn('w:hAnsi'), 'Times New Roman')
+        rFonts.set(qn('w:cs'), 'Times New Roman')
+        rFonts.set(qn('w:eastAsia'), 'Times New Roman')
+
     def format_run(run, font_name="Times New Roman", size_pt=13, bold=False, italic=False, color_rgb=(0, 0, 0)):
         run.font.name = font_name
         run.font.size = Pt(size_pt)
         run.bold = bold
         run.italic = italic
         run.font.color.rgb = RGBColor(*color_rgb)
+
+        # Attach OpenXML rFonts explicitly to guarantee Times New Roman on all platforms
+        rPr = run._r.get_or_add_rPr()
+        rFonts = rPr.get_or_add_rFonts()
+        rFonts.attrib.clear()
+        rFonts.set(qn('w:ascii'), font_name)
+        rFonts.set(qn('w:hAnsi'), font_name)
+        rFonts.set(qn('w:cs'), font_name)
+        rFonts.set(qn('w:eastAsia'), font_name)
 
     def add_heading_14(text, space_before=14, space_after=8):
         p = doc.add_paragraph()
@@ -186,14 +216,35 @@ def generate_complete_report():
     p.alignment = WD_ALIGN_PARAGRAPH.CENTER
     p.paragraph_format.space_before = Pt(6)
     p.paragraph_format.space_after = Pt(2)
-    r = p.add_run("BACHELOR OF TECHNOLOGY\nin\nELECTRONICS AND COMMUNICATION ENGINEERING")
-    format_run(r, font_name="Times New Roman", size_pt=12, bold=True)
+    r = p.add_run("in")
+    format_run(r, font_name="Times New Roman", size_pt=12, italic=True)
+
+    p = doc.add_paragraph()
+    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    p.paragraph_format.space_before = Pt(2)
+    p.paragraph_format.space_after = Pt(2)
+    r = p.add_run("ELECTRONICS AND COMMUNICATION ENGINEERING")
+    format_run(r, font_name="Times New Roman", size_pt=13, bold=True)
+
+    p = doc.add_paragraph()
+    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    p.paragraph_format.space_before = Pt(2)
+    p.paragraph_format.space_after = Pt(2)
+    r = p.add_run("of")
+    format_run(r, font_name="Times New Roman", size_pt=12, italic=True)
+
+    p = doc.add_paragraph()
+    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    p.paragraph_format.space_before = Pt(2)
+    p.paragraph_format.space_after = Pt(8)
+    r = p.add_run("FACULTY OF ENGINEERING AND TECHNOLOGY")
+    format_run(r, font_name="Times New Roman", size_pt=13, bold=True)
 
     # Official SRM Logo
     p_img = doc.add_paragraph()
     p_img.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    p_img.paragraph_format.space_before = Pt(12)
-    p_img.paragraph_format.space_after = Pt(12)
+    p_img.paragraph_format.space_before = Pt(10)
+    p_img.paragraph_format.space_after = Pt(10)
     run_img = p_img.add_run()
     run_img.add_picture("report/images/extracted_p1_0.jpeg", width=Inches(2.6))
 
@@ -203,12 +254,11 @@ def generate_complete_report():
     p.paragraph_format.space_after = Pt(2)
     p.paragraph_format.line_spacing = 1.3
     r = p.add_run(
-        "FACULTY OF ENGINEERING AND TECHNOLOGY\n"
         "SRM INSTITUTE OF SCIENCE AND TECHNOLOGY\n"
-        "RAMAPURAM, CHENNAI – 600089\n\n"
+        "RAMAPURAM\n\n"
         "OCTOBER 2026"
     )
-    format_run(r, font_name="Times New Roman", size_pt=12, bold=True)
+    format_run(r, font_name="Times New Roman", size_pt=13, bold=True)
 
     # ===========================================================================
     # PAGE 2: BONAFIDE CERTIFICATE
@@ -218,8 +268,8 @@ def generate_complete_report():
     add_heading_14("BONAFIDE CERTIFICATE", space_before=14, space_after=14)
 
     add_body_p(
-        "Certified that this project report titled “CROWDPULSE: IOT-ENABLED MULTI-SENSOR HARDWARE TELEMETRY AND REAL-TIME AI CROWD DENSITY ESTIMATION SYSTEM” is the Bonafide work of “PARAMESHWARAN S [RA2411053020060], DHARSHAN KUMAR K [RA2411053020013]” who carried out the project work under my supervision.",
-        space_before=10, space_after=30
+        "Certified that this project report titled “CROWDPULSE: IOT-ENABLED MULTI-SENSOR HARDWARE TELEMETRY AND REAL-TIME AI CROWD DENSITY ESTIMATION SYSTEM” is the Bonafide work of “PARAMESHWARAN S [RA2411053020060], DHARSHAN KUMAR K [RA2411053020013]” who carried out the project work under my supervision as a batch. Certified further, that to the best of my knowledge the work reported herein does not form any other project report on the basis of which a degree or award was conferred on an earlier occasion for this or any other candidate.",
+        space_before=10, space_after=26
     )
 
     t_cert = doc.add_table(rows=1, cols=2)
@@ -231,34 +281,46 @@ def generate_complete_report():
 
     p_l = cell_l.paragraphs[0]
     p_l.alignment = WD_ALIGN_PARAGRAPH.LEFT
-    p_l.paragraph_format.line_spacing = 1.25
+    p_l.paragraph_format.line_spacing = 1.2
     r_l = p_l.add_run(
-        "SIGNATURE\n\n\n\n\n"
-        "FACULTY GUIDE\n"
+        "Signature\n\n\n\n\n"
+        "Dr. Reshma P Vengaloor\n"
+        "Assistant Professor,\n"
         "Department of ECE\n"
-        "SRM Institute of Science and Technology\n"
-        "Ramapuram, Chennai - 600089"
+        "SRM institute of Science & Technology\n"
+        "Ramapuram Campus\n"
+        "Chennai - 600089"
     )
-    format_run(r_l, font_name="Times New Roman", size_pt=12, bold=True)
+    format_run(r_l, font_name="Times New Roman", size_pt=12, bold=False)
 
     p_r = cell_r.paragraphs[0]
-    p_r.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-    p_r.paragraph_format.line_spacing = 1.25
+    p_r.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    p_r.paragraph_format.line_spacing = 1.2
     r_r = p_r.add_run(
-        "SIGNATURE\n\n\n\n\n"
-        "HEAD OF THE DEPARTMENT\n"
+        "Signature\n\n\n\n\n"
+        "Dr.S. Rajasekaran\n"
+        "Professor & Head\n"
         "Department of ECE\n"
-        "SRM Institute of Science and Technology\n"
-        "Ramapuram, Chennai - 600089"
+        "SRM institute of Science & Technology\n"
+        "Ramapuram Campus\n"
+        "Chennai - 600089"
     )
-    format_run(r_r, font_name="Times New Roman", size_pt=12, bold=True)
+    format_run(r_r, font_name="Times New Roman", size_pt=12, bold=False)
 
     p_exam = doc.add_paragraph()
-    p_exam.alignment = WD_ALIGN_PARAGRAPH.LEFT
-    p_exam.paragraph_format.space_before = Pt(40)
-    p_exam.paragraph_format.space_after = Pt(20)
-    r_ex = p_exam.add_run("Submitted for the course practical examination held on: ____________________\n")
-    format_run(r_ex, font_name="Times New Roman", size_pt=12, italic=True)
+    p_exam.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+    p_exam.paragraph_format.space_before = Pt(28)
+    p_exam.paragraph_format.space_after = Pt(12)
+    p_exam.paragraph_format.line_spacing = 1.25
+    r_ex = p_exam.add_run("Submitted for University Examination held on ____________________ in the Department of Electronics and Communication Engineering, SRM Institute of Science and Technology, Ramapuram.")
+    format_run(r_ex, font_name="Times New Roman", size_pt=12, bold=False)
+
+    p_date = doc.add_paragraph()
+    p_date.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    p_date.paragraph_format.space_before = Pt(8)
+    p_date.paragraph_format.space_after = Pt(24)
+    r_d = p_date.add_run("Date:")
+    format_run(r_d, font_name="Times New Roman", size_pt=12, bold=False)
 
     t_eval = doc.add_table(rows=1, cols=2)
     t_eval.alignment = WD_TABLE_ALIGNMENT.CENTER
@@ -269,14 +331,12 @@ def generate_complete_report():
 
     p_el = c_el.paragraphs[0]
     p_el.alignment = WD_ALIGN_PARAGRAPH.LEFT
-    p_el.paragraph_format.line_spacing = 1.2
-    r_el = p_el.add_run("INTERNAL EXAMINER\nDate:")
+    r_el = p_el.add_run("Internal Examiner")
     format_run(r_el, font_name="Times New Roman", size_pt=12, bold=True)
 
     p_er = c_er.paragraphs[0]
     p_er.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-    p_er.paragraph_format.line_spacing = 1.2
-    r_er = p_er.add_run("EXTERNAL EXAMINER\nDate:")
+    r_er = p_er.add_run("External Examiner")
     format_run(r_er, font_name="Times New Roman", size_pt=12, bold=True)
 
     # ===========================================================================
@@ -647,7 +707,7 @@ def generate_complete_report():
     p_code.paragraph_format.space_before = Pt(2)
     p_code.paragraph_format.space_after = Pt(6)
     r_c = p_code.add_run(py_code_full)
-    format_run(r_c, font_name="Courier New", size_pt=8.5, bold=False, color_rgb=(15, 23, 42))
+    format_run(r_c, font_name="Times New Roman", size_pt=9.0, bold=False, color_rgb=(15, 23, 42))
 
     add_subheading("7.2 Assembly Language Program (ALP): 8051 Microcontroller Implementation", space_before=10, space_after=4)
     add_body_p(
@@ -793,7 +853,7 @@ def generate_complete_report():
     p_alp.paragraph_format.space_before = Pt(2)
     p_alp.paragraph_format.space_after = Pt(6)
     r_a = p_alp.add_run(alp_code_full)
-    format_run(r_a, font_name="Courier New", size_pt=8.5, bold=False, color_rgb=(15, 23, 42))
+    format_run(r_a, font_name="Times New Roman", size_pt=9.0, bold=False, color_rgb=(15, 23, 42))
 
     add_body_p(
         "The assembly program demonstrates fundamental microcomputer interfacing techniques: precise machine-cycle instruction timing (each DJNZ consuming 2 machine cycles = 2 µs at 12 MHz), bit-level port interrogation, accumulator bit-rotation, and direct driving of bipolar junction transistor actuator interfaces.",

@@ -53,11 +53,12 @@
 ---
 
 ## Formatting Compliance Checklist
-- [x] **Headings**: Times New Roman, Font size 14, Bold, Centered.
-- [x] **Body / Contents**: Times New Roman, Font size 13, Line spacing 1.5.
-- [x] **Figures**: Centered with explicit captions (`Figure 1.` through `Figure 6.`).
-- [x] **Tables**: Styled with headers, alternating row fills, and standard cell margins.
-- [x] **Page Numbers**: Starts strictly from 5th page (`5`, `6`, ..., `22`) in footer center.
-- [x] **Page Budget**: Exactly 22 full pages (exceeds the 15-page minimum with zero large empty spaces).
-- [x] **Mandatory Codes**: Both Python telemetry server code AND 8051 Assembly Language Program (ALP) code included.
+- [x] **Typography**: 100% Times New Roman across entire document (all styles, headings, body text, tables, captions, footers, and code listings enforced via OpenXML `w:rFonts` tags).
+- [x] **Title Page (Page 1)**: Formatted exactly according to syllabus template (Official Title, Course Code `21ECC301P`, Student Details, SRM Insignia, Ramapuram Campus, October 2026).
+- [x] **Bonafide Certificate (Page 2)**: Exact template wording ("...who carried out the project work under my supervision as a batch. Certified further, that to the best of my knowledge..."), Guide `Dr. Reshma P Vengaloor`, HOD `Dr.S. Rajasekaran`, and University Examination sign-off lines.
+- [x] **Declaration (Page 3)**: Right-aligned student declaration with registration numbers.
+- [x] **Abstract (Page 4)**: 280-word technical abstract (≥ 250 words) with keywords and 1.5 line spacing, strictly 1 page.
+- [x] **Introduction (Page 5)**: Times New Roman 14 bold centered heading, Times New Roman 13pt 1.5 line spacing body, **STRICTLY NO SRM LOGO ON THE INTRODUCTION**, centered page number `5` in footer.
+- [x] **Expected Contents (Pages 6 to 22)**: Complete coverage of syllabus items 1 to 11 with clear diagrams, dual code implementations (Python + 8051 ALP), working principles, telemetry graphs, and IEEE references.
+- [x] **Page Budget**: Strictly 22 pages total with zero orphan headings and no awkward whitespace.
 - [x] **Binding Margins**: Left margin 1.25 inches for soft binding (2 copies).
