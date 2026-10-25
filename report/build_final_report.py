@@ -10,7 +10,7 @@ from docx.oxml.ns import qn, nsdecls
 def generate_complete_report():
     doc = docx.Document()
 
-    # Standard A4 margins: Left 1.25 in (for binding), Right 1.0 in, Top 1.0 in, Bottom 1.0 in
+    # Standard A4 margins: Left 1.25 in (for binding), Right 1.0 in, Top 0.9 in, Bottom 0.9 in
     def set_margins(section, top=0.9, bottom=0.9, left=1.25, right=1.0):
         section.top_margin = Inches(top)
         section.bottom_margin = Inches(bottom)
@@ -169,7 +169,7 @@ def generate_complete_report():
 
     p = doc.add_paragraph()
     p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    p.paragraph_format.space_before = Pt(6)
+    p.paragraph_format.space_before = Pt(8)
     p.paragraph_format.space_after = Pt(2)
     r = p.add_run("in partial fulfillment for the course")
     format_run(r, font_name="Times New Roman", size_pt=12, italic=True)
@@ -177,57 +177,38 @@ def generate_complete_report():
     p = doc.add_paragraph()
     p.alignment = WD_ALIGN_PARAGRAPH.CENTER
     p.paragraph_format.space_before = Pt(2)
-    p.paragraph_format.space_after = Pt(6)
+    p.paragraph_format.space_after = Pt(14)
     p.paragraph_format.line_spacing = 1.3
-    r = p.add_run("21ECC301P / MICROPROCESSOR, MICROCONTROLLER, AND\nINTERFACING TECHNIQUES")
+    r = p.add_run("21ECC301P / MICROPROCESSOR, MICROCONTROLLER, AND INTERFACING TECHNIQUES")
     format_run(r, font_name="Times New Roman", size_pt=13, bold=True)
 
     p = doc.add_paragraph()
     p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    p.paragraph_format.space_before = Pt(4)
+    p.paragraph_format.space_before = Pt(6)
     p.paragraph_format.space_after = Pt(2)
-    r = p.add_run("in")
-    format_run(r, font_name="Times New Roman", size_pt=12, italic=True)
+    r = p.add_run("BACHELOR OF TECHNOLOGY\nin\nELECTRONICS AND COMMUNICATION ENGINEERING")
+    format_run(r, font_name="Times New Roman", size_pt=12, bold=True)
+
+    # Official SRM Logo
+    p_img = doc.add_paragraph()
+    p_img.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    p_img.paragraph_format.space_before = Pt(12)
+    p_img.paragraph_format.space_after = Pt(12)
+    run_img = p_img.add_run()
+    run_img.add_picture("report/images/extracted_p1_0.jpeg", width=Inches(2.6))
 
     p = doc.add_paragraph()
     p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    p.paragraph_format.space_before = Pt(2)
-    p.paragraph_format.space_after = Pt(4)
-    r = p.add_run("ELECTRONICS AND COMMUNICATION ENGINEERING")
-    format_run(r, font_name="Times New Roman", size_pt=13, bold=True)
-
-    p = doc.add_paragraph()
-    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    p.paragraph_format.space_before = Pt(2)
+    p.paragraph_format.space_before = Pt(6)
     p.paragraph_format.space_after = Pt(2)
-    r = p.add_run("of")
-    format_run(r, font_name="Times New Roman", size_pt=12, italic=True)
-
-    p = doc.add_paragraph()
-    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    p.paragraph_format.space_before = Pt(2)
-    p.paragraph_format.space_after = Pt(10)
-    r = p.add_run("FACULTY OF ENGINEERING AND TECHNOLOGY")
-    format_run(r, font_name="Times New Roman", size_pt=13, bold=True)
-
-    p_logo = doc.add_paragraph()
-    p_logo.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    p_logo.paragraph_format.space_before = Pt(4)
-    p_logo.paragraph_format.space_after = Pt(10)
-    r_logo = p_logo.add_run()
-    r_logo.add_picture("report/images/extracted_p1_0.jpeg", width=Inches(3.0))
-
-    p = doc.add_paragraph()
-    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    p.paragraph_format.space_before = Pt(4)
-    p.paragraph_format.space_after = Pt(0)
     p.paragraph_format.line_spacing = 1.3
-    r1 = p.add_run("SRM INSTITUTE OF SCIENCE AND TECHNOLOGY\n")
-    format_run(r1, font_name="Times New Roman", size_pt=13, bold=True)
-    r2 = p.add_run("RAMAPURAM\n")
-    format_run(r2, font_name="Times New Roman", size_pt=13, bold=True)
-    r3 = p.add_run("OCTOBER 2026")
-    format_run(r3, font_name="Times New Roman", size_pt=13, bold=True)
+    r = p.add_run(
+        "FACULTY OF ENGINEERING AND TECHNOLOGY\n"
+        "SRM INSTITUTE OF SCIENCE AND TECHNOLOGY\n"
+        "RAMAPURAM, CHENNAI – 600089\n\n"
+        "OCTOBER 2026"
+    )
+    format_run(r, font_name="Times New Roman", size_pt=12, bold=True)
 
     # ===========================================================================
     # PAGE 2: BONAFIDE CERTIFICATE
@@ -237,63 +218,66 @@ def generate_complete_report():
     add_heading_14("BONAFIDE CERTIFICATE", space_before=14, space_after=14)
 
     add_body_p(
-        "Certified that this project report titled “CROWDPULSE: IOT-ENABLED MULTI-SENSOR HARDWARE TELEMETRY AND REAL-TIME AI CROWD DENSITY ESTIMATION SYSTEM” is the Bonafide work of “PARAMESHWARAN S [RA2411053020060], DHARSHAN KUMAR K [RA2411053020013]” who carried out the project work under my supervision as a batch. Certified further, that to the best of my knowledge the work reported herein does not form any other project report on the basis of which a degree or award was conferred on an earlier occasion for this or any other candidate.",
-        space_before=6, space_after=24
+        "Certified that this project report titled “CROWDPULSE: IOT-ENABLED MULTI-SENSOR HARDWARE TELEMETRY AND REAL-TIME AI CROWD DENSITY ESTIMATION SYSTEM” is the Bonafide work of “PARAMESHWARAN S [RA2411053020060], DHARSHAN KUMAR K [RA2411053020013]” who carried out the project work under my supervision.",
+        space_before=10, space_after=30
     )
 
-    sig_table = doc.add_table(rows=1, cols=2)
-    sig_table.alignment = WD_TABLE_ALIGNMENT.CENTER
-    cell_l, cell_r = sig_table.rows[0].cells
-    cell_l.width = Inches(3.0)
-    cell_r.width = Inches(3.0)
+    t_cert = doc.add_table(rows=1, cols=2)
+    t_cert.alignment = WD_TABLE_ALIGNMENT.CENTER
+    cell_l = t_cert.rows[0].cells[0]
+    cell_r = t_cert.rows[0].cells[1]
+    cell_l.width = Inches(3.2)
+    cell_r.width = Inches(3.2)
 
     p_l = cell_l.paragraphs[0]
+    p_l.alignment = WD_ALIGN_PARAGRAPH.LEFT
     p_l.paragraph_format.line_spacing = 1.25
-    r = p_l.add_run("Signature\n\n\n")
-    format_run(r, font_name="Times New Roman", size_pt=13, bold=True)
-    r_txt = p_l.add_run(
-        "Dr. Reshma P Vengaloor\n"
-        "Assistant Professor,\n"
+    r_l = p_l.add_run(
+        "SIGNATURE\n\n\n\n\n"
+        "FACULTY GUIDE\n"
         "Department of ECE\n"
-        "SRM institute of Science & Technology\n"
-        "Ramapuram Campus\n"
-        "Chennai - 600089"
+        "SRM Institute of Science and Technology\n"
+        "Ramapuram, Chennai - 600089"
     )
-    format_run(r_txt, font_name="Times New Roman", size_pt=11.5, bold=False)
+    format_run(r_l, font_name="Times New Roman", size_pt=12, bold=True)
 
     p_r = cell_r.paragraphs[0]
+    p_r.alignment = WD_ALIGN_PARAGRAPH.RIGHT
     p_r.paragraph_format.line_spacing = 1.25
-    r = p_r.add_run("Signature\n\n\n")
-    format_run(r, font_name="Times New Roman", size_pt=13, bold=True)
-    r_txt = p_r.add_run(
-        "Dr.S. Rajasekaran\n"
-        "Professor & Head\n"
+    r_r = p_r.add_run(
+        "SIGNATURE\n\n\n\n\n"
+        "HEAD OF THE DEPARTMENT\n"
         "Department of ECE\n"
-        "SRM institute of Science & Technology\n"
-        "Ramapuram Campus\n"
-        "Chennai - 600089"
+        "SRM Institute of Science and Technology\n"
+        "Ramapuram, Chennai - 600089"
     )
-    format_run(r_txt, font_name="Times New Roman", size_pt=11.5, bold=False)
+    format_run(r_r, font_name="Times New Roman", size_pt=12, bold=True)
 
-    add_body_p(
-        "Submitted for University Examination held on ____________________ in the Department of Electronics and Communication Engineering, SRM Institute of Science and Technology, Ramapuram.",
-        space_before=24, space_after=24
-    )
+    p_exam = doc.add_paragraph()
+    p_exam.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    p_exam.paragraph_format.space_before = Pt(40)
+    p_exam.paragraph_format.space_after = Pt(20)
+    r_ex = p_exam.add_run("Submitted for the course practical examination held on: ____________________\n")
+    format_run(r_ex, font_name="Times New Roman", size_pt=12, italic=True)
 
-    ex_table = doc.add_table(rows=1, cols=2)
-    ex_table.alignment = WD_TABLE_ALIGNMENT.CENTER
-    c_el, c_er = ex_table.rows[0].cells
-    c_el.width = Inches(3.0)
-    c_er.width = Inches(3.0)
+    t_eval = doc.add_table(rows=1, cols=2)
+    t_eval.alignment = WD_TABLE_ALIGNMENT.CENTER
+    c_el = t_eval.rows[0].cells[0]
+    c_er = t_eval.rows[0].cells[1]
+    c_el.width = Inches(3.2)
+    c_er.width = Inches(3.2)
 
     p_el = c_el.paragraphs[0]
-    r = p_el.add_run("Date:\n\nInternal Examiner")
-    format_run(r, font_name="Times New Roman", size_pt=12, bold=True)
+    p_el.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    p_el.paragraph_format.line_spacing = 1.2
+    r_el = p_el.add_run("INTERNAL EXAMINER\nDate:")
+    format_run(r_el, font_name="Times New Roman", size_pt=12, bold=True)
 
     p_er = c_er.paragraphs[0]
     p_er.alignment = WD_ALIGN_PARAGRAPH.RIGHT
-    r = p_er.add_run("\n\nExternal Examiner")
-    format_run(r, font_name="Times New Roman", size_pt=12, bold=True)
+    p_er.paragraph_format.line_spacing = 1.2
+    r_er = p_er.add_run("EXTERNAL EXAMINER\nDate:")
+    format_run(r_er, font_name="Times New Roman", size_pt=12, bold=True)
 
     # ===========================================================================
     # PAGE 3: DECLARATION
@@ -322,7 +306,7 @@ def generate_complete_report():
     format_run(r, font_name="Times New Roman", size_pt=13, bold=True)
 
     # ===========================================================================
-    # PAGE 4: ABSTRACT (Strictly 1 Page: 260 words, 1.5 spacing, 13pt)
+    # PAGE 4: ABSTRACT (Strictly 1 Page)
     # ===========================================================================
     doc.add_page_break()
 
@@ -385,20 +369,21 @@ def generate_complete_report():
     f_run._r.append(fldChar3)
 
     # ---------------------------------------------------------------------------
-    # 1. INTRODUCTION
+    # 1. INTRODUCTION (Page 5: Exactly 280 words, no SRM logo, zero spillover)
     # ---------------------------------------------------------------------------
     add_heading_14("1. INTRODUCTION", space_before=8, space_after=10)
 
     add_body_p(
-        "Pedestrian density management and catastrophic crush prevention represent paramount engineering challenges in contemporary public safety and civil infrastructure. Catastrophic stampedes and crowd collapse phenomena, frequently observed during major religious pilgrimages, sports competitions, musical festivals, and metropolitan transport interchanges, result from localized spatial bottlenecks coupled with rapid flow impedance. Under extreme physical compaction exceeding five to six persons per square meter, human crowds undergo a phase transition from fluid-like laminar movement to chaotic 'turbulent crowd shockwaves'. In this critical regime, physical contact forces propagate involuntarily across bodies, causing asphyxiation, blunt trauma, and loss of equilibrium. Traditional crowd control frameworks rely predominantly upon human surveillance personnel or passive closed-circuit television (CCTV) cameras. However, human operators suffer from cognitive fatigue and visual blind spots, while conventional CCTV systems offer only post-incident forensic video rather than actionable real-time hazard preemption."
+        "Pedestrian density management and catastrophic crush prevention represent paramount engineering challenges in contemporary public safety and civil infrastructure. Catastrophic stampedes and crowd collapses, observed during major pilgrimages, athletic events, and transit interchanges, result from spatial bottlenecks and flow impedance. Under extreme physical compaction exceeding five persons per square meter, human crowds undergo a phase transition from laminar movement to chaotic 'turbulent crowd shockwaves'. In this critical regime, physical contact forces propagate involuntarily across bodies, reaching compressive forces exceeding 4,500 N that cause compressive asphyxiation, blunt trauma, and loss of equilibrium. Traditional crowd control frameworks rely predominantly upon human surveillance personnel or passive CCTV cameras. However, human operators suffer from cognitive fatigue and visual blind spots, while conventional CCTV offers only post-incident forensic video rather than actionable real-time hazard preemption."
     )
-
-    add_figure("report/images/extracted_p5_0.jpeg", "Figure 1. SRM Institute of Science and Technology Official Insignia", width_inches=2.9)
 
     add_body_p(
-        "To mitigate these vulnerabilities, the laboratory curriculum of course 21ECC301P (Microprocessor, Microcontroller, and Interfacing Techniques) emphasizes the real-world application of embedded processor architectures, hardware timing synchronization, digital bus protocols, and sensory peripheral interfacing. The CrowdPulse project embodies these engineering paradigms by engineering a robust hardware telemetry unit coupled with real-time edge processing intelligence. By physically interfacing multi-modal transducers—incorporating digital temperature and relative humidity tracking (AM2302/DHT22), precision I2S digital acoustic pressure sensing (INMP441 MEMS microphone), and pyroelectric infrared peripheral movement detection (HC-SR501)—with modern dual-core embedded microcontrollers and foundational 8051 processor registers, CrowdPulse bridges the divide between physical hardware sensor acquisition and algorithmic early-warning crowd intelligence."
+        "Optical surveillance approaches suffer from catastrophic degradation during crowd crushes: extreme visual occlusion masks lower-body motion, architectural bottlenecks obstruct camera vantages, and smoke or lighting shifts render computer vision blind. Furthermore, optical analytics fail to monitor physical microclimates and acoustic precursors occurring tens of seconds before visual stampede panic is visible. To mitigate these vulnerabilities, the laboratory curriculum of course 21ECC301P (Microprocessor, Microcontroller, and Interfacing Techniques) emphasizes embedded processor architectures, hardware timing, digital bus protocols, and sensory interfacing. The CrowdPulse project embodies these paradigms by interfacing multi-modal transducers—incorporating digital temperature/humidity tracking (AM2302), precision I2S digital acoustic sensing (INMP441 MEMS microphone) with a fast-attack envelope filter, 802.11 Wi-Fi promiscuous probe request sniffing, an SSD1306 OLED HUD, and pyroelectric motion detection (HC-SR501)—with dual-core microcontrollers and 8051 registers, bridging physical sensor acquisition and algorithmic early-warning intelligence."
     )
 
+    # ---------------------------------------------------------------------------
+    # 1.1 Background and Interfacing Motivation
+    # ---------------------------------------------------------------------------
     add_subheading("1.1 Background and Interfacing Motivation", space_before=8, space_after=4)
     add_body_p(
         "Embedded microcontroller architectures provide deterministic execution and sub-millisecond interrupt responsiveness that general-purpose computing operating systems cannot guarantee. In high-density crowd scenarios, physical telemetry variables exhibit precursor signatures tens of seconds before visual stampede panic becomes apparent: ambient temperature and humidity rise sharply due to concentrated body thermal dissipation in enclosed bottlenecks; acoustic decibel levels surge past 85 dB SPL due to crowd vocal panic or distress screams; and pyroelectric motion triggers indicate abnormal spatial velocity fluctuations. By processing these multi-sensor signals directly on an interfaced microcontroller edge node, emergency actuators—such as local acoustic sirens and visual status beacons—can be deployed instantaneously without depending on unpredictable cloud network latency."
@@ -440,11 +425,11 @@ def generate_complete_report():
     add_heading_14("3. BLOCK DIAGRAM", space_before=14, space_after=8)
 
     add_body_p(
-        "The architectural structure of the CrowdPulse multi-sensor edge intelligence platform is partitioned into five distinct functional layers: the Sensor Transducer Layer, the Embedded Microcontroller Core, the Local Output Actuation Layer, the Edge Telemetry Gateway, and the Real-Time Analytics Server. Figure 2 illustrates the comprehensive interconnection and signal data flow across these subsystems.",
+        "The architectural structure of the CrowdPulse multi-sensor edge intelligence platform is partitioned into five distinct functional layers: the Sensor Transducer Layer, the Embedded Microcontroller Core, the Local Output Actuation Layer, the Edge Telemetry Gateway, and the Real-Time Analytics Server. Figure 1 illustrates the comprehensive interconnection and signal data flow across these subsystems.",
         space_before=0, space_after=4
     )
 
-    add_figure("report/images/block_diagram.png", "Figure 2. CrowdPulse Hardware Interfacing and System Block Diagram", width_inches=5.2)
+    add_figure("report/images/block_diagram.png", "Figure 1. CrowdPulse Hardware Interfacing and System Block Diagram", width_inches=5.2)
 
     add_body_p(
         "As depicted in the block diagram, the primary input sensing block comprises three discrete environmental and acoustic transducers. The AM2302 (DHT22) captures calibrated temperature and relative humidity using an internal capacitive humidity sensor and negative temperature coefficient (NTC) thermistor, transmitting 40-bit serialized pulse-train data over a bidirectional single-wire digital interface. The INMP441 MEMS microphone converts ambient acoustic pressure waves into high-resolution 24-bit pulse-code modulated (PCM) digital audio data transmitted synchronously across a 3-wire I2S bus (Serial Clock BCLK, Word Select WS, and Serial Data SD). The HC-SR501 PIR sensor monitors differential infrared thermal flux from human locomotion, asserting a high logic pulse on a dedicated microcontroller GPIO line upon movement detection."
@@ -508,11 +493,11 @@ def generate_complete_report():
     add_heading_14("5. CIRCUIT DIAGRAM", space_before=14, space_after=8)
 
     add_body_p(
-        "The circuit schematic for interfacing multi-modal sensors and local actuators with the microcontroller unit is illustrated in Figure 3. The circuit incorporates rigorous electrical conditioning stages to guarantee signal integrity, noise rejection, and transient suppression across all physical communication buses.",
+        "The circuit schematic for interfacing multi-modal sensors and local actuators with the microcontroller unit is illustrated in Figure 2. The circuit incorporates rigorous electrical conditioning stages to guarantee signal integrity, noise rejection, and transient suppression across all physical communication buses.",
         space_before=0, space_after=4
     )
 
-    add_figure("report/images/circuit_diagram.png", "Figure 3. Microcontroller Multi-Sensor Interfacing Circuit Schematic", width_inches=5.2)
+    add_figure("report/images/circuit_diagram.png", "Figure 2. Microcontroller Multi-Sensor Interfacing Circuit Schematic", width_inches=5.2)
 
     add_body_p(
         "The circuit design adheres to exact electronic design criteria:",
@@ -533,11 +518,11 @@ def generate_complete_report():
     add_heading_14("6. ALGORITHM AND FLOWCHART", space_before=14, space_after=8)
 
     add_body_p(
-        "The operational logic of the CrowdPulse edge telemetry unit executes a cyclic finite state machine (FSM) governed by hardware timer interrupts and deterministic sensor polling routines. Figure 4 illustrates the end-to-end procedural execution flowchart.",
+        "The operational logic of the CrowdPulse edge telemetry unit executes a cyclic finite state machine (FSM) governed by hardware timer interrupts and deterministic sensor polling routines. Figure 3 illustrates the end-to-end procedural execution flowchart.",
         space_before=0, space_after=4
     )
 
-    add_figure("report/images/flowchart_compact.png", "Figure 4. Firmware Execution and Multi-Sensor Risk Fusion Flowchart", width_inches=5.2)
+    add_figure("report/images/flowchart_compact.png", "Figure 3. Firmware Execution and Multi-Sensor Risk Fusion Flowchart", width_inches=5.2)
 
     add_subheading("Step-by-Step Microcontroller Firmware Execution Algorithm:", space_before=4, space_after=2)
     algo_steps = [
@@ -821,11 +806,11 @@ def generate_complete_report():
     add_heading_14("8. WORKING PRINCIPLE", space_before=14, space_after=8)
 
     add_body_p(
-        "The operational principle of CrowdPulse integrates physical transduction, digital bus protocol decoding, statistical acoustic digital signal processing (DSP), and multi-criteria mathematical risk fusion. Figure 5 depicts the end-to-end data pipeline from physical sensor inputs to actuator decisions.",
+        "The operational principle of CrowdPulse integrates physical transduction, digital bus protocol decoding, statistical acoustic digital signal processing (DSP), and multi-criteria mathematical risk fusion. Figure 4 depicts the end-to-end data pipeline from physical sensor inputs to actuator decisions.",
         space_before=0, space_after=4
     )
 
-    add_figure("report/images/sensor_fusion.png", "Figure 5. Multi-Sensor Data Fusion Pipeline & Stampede Risk Model", width_inches=5.2)
+    add_figure("report/images/sensor_fusion.png", "Figure 4. Multi-Sensor Data Fusion Pipeline & Stampede Risk Model", width_inches=5.2)
 
     add_subheading("8.1 Physical Sensor Transduction Principles", space_before=5, space_after=2)
     add_body_p(
@@ -835,7 +820,7 @@ def generate_complete_report():
         "2. INMP441 MEMS Omnidirectional Acoustic Sensor: Acoustic sound waves enter the sensor via a bottom acoustic port, vibrating a microscopic suspended polysilicon diaphragm positioned above a fixed backplate. The resulting capacitive variation is converted into an electrical voltage by an internal application-specific integrated circuit (ASIC), digitized by a fourth-order Sigma-Delta analog-to-digital converter (ADC), and formatted into 24-bit stereo I2S audio frames. Root-Mean-Square (RMS) computation converts instantaneous amplitude samples into true decibel sound pressure levels."
     )
     add_body_p(
-        "3. HC-SR501 Pyroelectric Motion Detection: Human bodies naturally emit infrared electromagnetic radiation concentrated around a wavelength of 9.4 µm. The sensor incorporates a segmented Fresnel lens that focuses infrared radiation onto dual pyroelectric elements wired in electrical opposition. Movement across the optical fields creates a differential charge imbalance across the lithium tantalate crystalline element, triggering a bistable internal timer that outputs a clean 3.3V digital HIGH logic pulse."
+        "3. HC-SR501 Pyroelectric Motion Detection & 802.11 RF Sniffer: Human bodies naturally emit infrared electromagnetic radiation concentrated around a wavelength of 9.4 µm. The sensor incorporates a segmented Fresnel lens that focuses infrared radiation onto dual pyroelectric elements wired in electrical opposition. Movement creates a differential charge imbalance, triggering a 3.3V digital logic pulse. Concurrently, the 802.11 sniffer captures 2.4 GHz probe requests transmitted by pedestrian smartphones, filtering randomized MAC addresses to estimate crowd count independently of optical visibility."
     )
 
     add_subheading("8.2 Mathematical Multi-Sensor Stampede Risk Fusion Model", space_before=6, space_after=2)
@@ -856,24 +841,24 @@ def generate_complete_report():
     add_heading_14("9. RESULTS AND DISCUSSION", space_before=14, space_after=8)
 
     add_body_p(
-        "The CrowdPulse multi-sensor edge telemetry system was subjected to rigorous empirical evaluation across simulated crowd surge scenarios, high-ambient noise interference tests, and sustained microclimate thermal variations. Figure 6 illustrates the real-time telemetry waveforms captured during active crowd monitoring trials.",
+        "The CrowdPulse multi-sensor edge telemetry system was subjected to rigorous empirical evaluation across simulated crowd surge scenarios, high-ambient noise interference tests, and sustained microclimate thermal variations. Figure 5 illustrates the real-time telemetry waveforms captured during active crowd monitoring trials.",
         space_before=0, space_after=4
     )
 
-    add_figure("report/images/results_telemetry.png", "Figure 6. Real-Time Hardware Telemetry, Acoustic Decibels, and Stampede Risk Curves", width_inches=5.2)
+    add_figure("report/images/results_telemetry.png", "Figure 5. Real-Time Hardware Telemetry, Acoustic Decibels, and Stampede Risk Curves", width_inches=5.2)
 
     add_subheading("9.1 Real-Time Acoustic and Microclimate Correlation", space_before=5, space_after=2)
     add_body_p(
-        "The telemetry plots in Figure 6 substantiate the multi-sensor synergy. In Figure 6(a), baseline ambient acoustic noise remains at 48 dB SPL during standard conditions. At t = 28s, simulated vocal panic and physical crush sounds initiate a rapid decibel surge, peaking at 88.4 dB SPL at t = 32s. Concurrently, Figure 6(b) plots the YOLOv8 person detection count surging from 14 to 48 individuals within a 15-meter corridor zone. Figure 6(c) displays the fused Stampede Risk Index, which crosses the warning advisory line (35%) at t = 22s and triggers the 70% critical siren alarm at t = 30s. Figure 6(d) confirms the thermal dissipation of concentrated bodies, where local temperature rises by 2.2°C and humidity shifts by 3.5% RH. This multi-sensor correlation provides emergency services an early-warning window of 38 seconds prior to simulated physical blockage."
+        "The telemetry plots in Figure 5 substantiate the multi-sensor synergy. In Figure 5(a), baseline ambient acoustic noise remains at 48 dB SPL during standard conditions. At t = 28s, simulated vocal panic and physical crush sounds initiate a rapid decibel surge, peaking at 88.4 dB SPL at t = 32s. Concurrently, Figure 5(b) plots the YOLOv8 person detection count surging from 14 to 48 individuals within a 15-meter corridor zone. Figure 5(c) displays the fused Stampede Risk Index, which crosses the warning advisory line (35%) at t = 22s and triggers the 70% critical siren alarm at t = 30s. Figure 5(d) confirms the thermal dissipation of concentrated bodies, where local temperature rises by 2.2°C and humidity shifts by 3.5% RH. This multi-sensor correlation provides emergency services an early-warning window of 38 seconds prior to simulated physical blockage."
     )
 
     add_subheading("9.2 Enterprise Operations Console and Validation Metrics", space_before=6, space_after=2)
     add_body_p(
-        "Figure 7 depicts the enterprise-grade surveillance dashboard deployed in the control room. The console integrates live camera streams with YOLOv8 bounding boxes, I2S sound pressure spectrum bars, microclimate gauges, and instantaneous hardware actuator statuses.",
+        "Figure 6 depicts the enterprise-grade surveillance dashboard deployed in the control room. The console integrates live camera streams with YOLOv8 bounding boxes, I2S sound pressure spectrum bars, microclimate gauges, and instantaneous hardware actuator statuses.",
         space_before=0, space_after=4
     )
 
-    add_figure("report/images/dashboard_interface.png", "Figure 7. CrowdPulse Real-Time Monitoring Dashboard Interface", width_inches=5.2)
+    add_figure("report/images/dashboard_interface.png", "Figure 6. CrowdPulse Real-Time Monitoring Dashboard Interface", width_inches=5.2)
 
     add_subheading("Table 5. Experimental Hardware Telemetry and Validation Performance", space_before=5, space_after=2)
     res_table = doc.add_table(rows=6, cols=5)
@@ -898,7 +883,7 @@ def generate_complete_report():
     add_heading_14("10. CONCLUSION", space_before=14, space_after=8)
 
     add_body_p(
-        "In this project report, the design, hardware interfacing, assembly programming, and experimental validation of CrowdPulse—an autonomous multi-sensor edge telemetry and real-time stampede prediction platform—have been systematically demonstrated. By interfacing the AM2302 environmental sensor, INMP441 I2S MEMS microphone, and HC-SR501 PIR sensor with both modern dual-core embedded microcontrollers and classic 8051 microprocessor architectures, the project satisfies the technical requirements of course 21ECC301P (Microprocessor, Microcontroller, and Interfacing Techniques).",
+        "In this project report, the design, hardware interfacing, assembly programming, and experimental validation of CrowdPulse—an autonomous multi-sensor edge telemetry and real-time stampede prediction platform—have been systematically demonstrated. By interfacing the AM2302 environmental sensor, INMP441 I2S MEMS microphone, SSD1306 OLED display, 802.11 Wi-Fi promiscuous probe sniffer, and HC-SR501 PIR sensor with both modern dual-core embedded microcontrollers and classic 8051 microprocessor architectures, the project satisfies the technical requirements of course 21ECC301P (Microprocessor, Microcontroller, and Interfacing Techniques).",
         space_before=0, space_after=4
     )
 
