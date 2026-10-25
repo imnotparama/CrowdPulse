@@ -20,6 +20,7 @@ import {
   Terminal,
   AlertTriangle,
 } from 'lucide-react';
+import { getApiBase } from '../config';
 
 export interface SelfTestReport {
   status: string;
@@ -115,10 +116,11 @@ export const HardwareSelfTestModal: React.FC<HardwareSelfTestModalProps> = ({
   // Fetch Serial Ports & Network Info when modal opens
   const refreshHardwareData = async () => {
     try {
+      const api = getApiBase();
       const [portsRes, statusRes, netRes] = await Promise.all([
-        fetch('http://127.0.0.1:8000/api/hardware/serial/ports'),
-        fetch('http://127.0.0.1:8000/api/hardware/serial/status'),
-        fetch('http://127.0.0.1:8000/api/hardware/network/info'),
+        fetch(`${api}/api/hardware/serial/ports`),
+        fetch(`${api}/api/hardware/serial/status`),
+        fetch(`${api}/api/hardware/network/info`),
       ]);
 
       if (portsRes.ok) {
@@ -160,7 +162,7 @@ export const HardwareSelfTestModal: React.FC<HardwareSelfTestModalProps> = ({
     setIsConnectingSerial(true);
     setSerialError(null);
     try {
-      const res = await fetch('http://127.0.0.1:8000/api/hardware/serial/connect', {
+      const res = await fetch(`${getApiBase()}/api/hardware/serial/connect`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ port: selectedPort, baudrate: baudRate }),
@@ -182,7 +184,7 @@ export const HardwareSelfTestModal: React.FC<HardwareSelfTestModalProps> = ({
 
   const handleDisconnectSerial = async () => {
     try {
-      await fetch('http://127.0.0.1:8000/api/hardware/serial/disconnect', { method: 'POST' });
+      await fetch(`${getApiBase()}/api/hardware/serial/disconnect`, { method: 'POST' });
       setSerialConnected(false);
       setSerialActivePort(null);
     } catch {
@@ -473,7 +475,7 @@ export const HardwareSelfTestModal: React.FC<HardwareSelfTestModalProps> = ({
                           </label>
                           <div className="flex items-center gap-2 bg-[#18181D] border border-white/[0.1] rounded-lg p-2 font-mono text-xs text-emerald-300">
                             <span className="flex-1 truncate select-all">
-                              {networkInfo?.telemetry_url || 'http://192.168.1.8:8000/api/hardware/telemetry'}
+                              {networkInfo?.telemetry_url || `${getApiBase()}/api/hardware/telemetry`}
                             </span>
                             <button
                               onClick={handleCopyUrl}
@@ -487,7 +489,7 @@ export const HardwareSelfTestModal: React.FC<HardwareSelfTestModalProps> = ({
                           <div className="p-2.5 rounded-lg bg-black/40 border border-white/[0.05] text-[10px] font-mono text-zinc-400 space-y-1">
                             <div className="flex justify-between">
                               <span>HOST IP:</span>
-                              <span className="text-zinc-200">{networkInfo?.host_ip || '192.168.1.8'}</span>
+                              <span className="text-zinc-200">{networkInfo?.host_ip || (typeof window !== 'undefined' ? window.location.hostname : '127.0.0.1')}</span>
                             </div>
                             <div className="flex justify-between">
                               <span>HTTP PORT:</span>

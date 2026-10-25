@@ -1,6 +1,7 @@
 import React from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { X, Film, Download, FileVideo, Shield, Lock, Unlock, Play } from 'lucide-react';
+import { getApiBase } from '../config';
 
 interface EvidenceLockerProps {
   lockerOpen: boolean;
@@ -171,7 +172,7 @@ const EvidenceLocker: React.FC<EvidenceLockerProps> = ({
                     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-3">
                       <div className="rounded-xl overflow-hidden border border-white/10 shadow-2xl bg-black">
                         <video
-                          src={`http://127.0.0.1:8000/recordings/${selectedVideo}`}
+                          src={`${getApiBase()}/recordings/${selectedVideo}`}
                           controls
                           autoPlay
                           className="w-full aspect-video"
@@ -185,7 +186,7 @@ const EvidenceLocker: React.FC<EvidenceLockerProps> = ({
                           <div className="text-[10px] font-mono text-zinc-500">{selectedVideo}</div>
                         </div>
                         <a
-                          href={`http://127.0.0.1:8000/recordings/${selectedVideo}`}
+                          href={`${getApiBase()}/recordings/${selectedVideo}`}
                           download
                           className="px-3 py-1.5 rounded-lg bg-cyan-500/10 border border-cyan-500/30 text-cyan-300 font-mono text-xs font-semibold hover:bg-cyan-500/20 transition-all flex items-center gap-1.5"
                         >

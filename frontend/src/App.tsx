@@ -17,6 +17,7 @@ import HardwareSelfTestModal, { type SelfTestReport } from './components/Hardwar
 import ForensicReportModal from './components/ForensicReportModal';
 import PhoneCameraModal from './components/PhoneCameraModal';
 import CommandPalette from './components/CommandPalette';
+import { getApiBase, getWsBase } from './config';
 
 interface WifiZone {
   count: number;
@@ -209,7 +210,7 @@ function App() {
 
   const fetchRecordings = async () => {
     try {
-      const res = await fetch('http://127.0.0.1:8000/api/recordings');
+      const res = await fetch(`${getApiBase()}/api/recordings`);
       const data = await res.json();
       setRecordings(data);
     } catch (e) {
@@ -219,7 +220,7 @@ function App() {
 
   const fetchVideos = async () => {
     try {
-      const res = await fetch('http://127.0.0.1:8000/api/videos');
+      const res = await fetch(`${getApiBase()}/api/videos`);
       if (res.ok) {
         const data = await res.json();
         if (Array.isArray(data) && data.length > 0) {
@@ -239,7 +240,7 @@ function App() {
   const connectWebSocket = () => {
     if (ws.current && ws.current.readyState === WebSocket.OPEN) return;
 
-    ws.current = new WebSocket('ws://127.0.0.1:8000/ws');
+    ws.current = new WebSocket(`${getWsBase()}/ws`);
 
     ws.current.onopen = () => {
       setWsConnected(true);
@@ -431,7 +432,7 @@ function App() {
     setSelfTestRunning(true);
     playSound('beep');
     try {
-      const res = await fetch('http://127.0.0.1:8000/api/hardware/self-test', { method: 'POST' });
+      const res = await fetch(`${getApiBase()}/api/hardware/self-test`, { method: 'POST' });
       if (res.ok) {
         const data = await res.json();
         setSelfTestReport(data);
@@ -449,7 +450,7 @@ function App() {
     playSound('click');
     sendCommand('hardware_override', { buzzer, led });
     try {
-      await fetch('http://127.0.0.1:8000/api/hardware/actuators/override', {
+      await fetch(`${getApiBase()}/api/hardware/actuators/override`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ buzzer, led }),
@@ -463,7 +464,7 @@ function App() {
     playSound('click');
     sendCommand('hardware_reset');
     try {
-      await fetch('http://127.0.0.1:8000/api/hardware/actuators/reset', { method: 'POST' });
+      await fetch(`${getApiBase()}/api/hardware/actuators/reset`, { method: 'POST' });
     } catch {
       // ignore
     }
@@ -490,7 +491,7 @@ function App() {
 
     sendCommand('switch_video', { video_id: cam });
     try {
-      await fetch('http://127.0.0.1:8000/api/videos/select', {
+      await fetch(`${getApiBase()}/api/videos/select`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ video_id: cam }),

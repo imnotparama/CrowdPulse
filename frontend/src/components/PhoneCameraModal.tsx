@@ -10,6 +10,7 @@ import {
   Info,
   ArrowRight,
 } from 'lucide-react';
+import { getApiBase } from '../config';
 
 interface PhoneCameraModalProps {
   isOpen: boolean;
@@ -45,7 +46,7 @@ export const PhoneCameraModal: React.FC<PhoneCameraModalProps> = ({
     setStatusMessage({ type: 'idle', text: '' });
 
     try {
-      const res = await fetch('http://127.0.0.1:8000/api/phone/connect', {
+      const res = await fetch(`${getApiBase()}/api/phone/connect`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url: url.trim() }),
