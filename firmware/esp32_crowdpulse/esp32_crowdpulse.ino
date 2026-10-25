@@ -27,6 +27,8 @@
 #include <DHT.h>
 #include <driver/i2s.h>
 #include <math.h>
+#include "soc/soc.h"
+#include "soc/rtc_cntl_reg.h"
 
 // ---------------- PIN DEFINITIONS ----------------
 #define PIN_DHT          4   // DHT11 Data pin
@@ -35,6 +37,9 @@
 #define PIN_LED_BLUE     3   // RGB Blue channel
 #define PIN_BUZZER      10   // 2N2222 Transistor Base
 #define PIN_BUTTON_SOS  11   // Emergency Push Button
+
+// Set to true only once physical push button is wired between GPIO 11 and GND
+#define ENABLE_SOS_BUTTON false
 
 // I2S Microphone Pins (INMP441)
 #define I2S_SD           7
@@ -85,6 +90,11 @@ String currentStatus = "NORMAL";
 String currentLedColor = "GREEN";
 bool currentBuzzer = false;
 bool sosActive = false;
+
+// Remote command tracking from CrowdPulse backend
+String remoteLed = "GREEN";
+bool remoteBuzzer = false;
+bool hasRemoteCommand = false;
 
 float currentTemp = 25.0;
 float currentHum = 50.0;
@@ -202,7 +212,13 @@ void applyActuators(String color, bool buzzer) {
     currentStatus = "NORMAL";
   }
 
-  digitalWrite(PIN_BUZZER, buzzer ? HIGH : LOW);
+  if (buzzer) {
+    // Pulsing urgent alarm chirp (100ms ON / 100ms OFF) - highly audible & unmistakable
+    bool beepPhase = ((millis() / 100) % 2 == 0);
+    digitalWrite(PIN_BUZZER, beepPhase ? HIGH : LOW);
+  } else {
+    digitalWrite(PIN_BUZZER, LOW);
+  }
 }
 
 // ---------------- SENSING & ACOUSTIC FUNCTIONS ----------------
@@ -235,7 +251,7 @@ float readMicrophoneDb() {
 
     // If microphone is silent or disconnected
     if (rms_norm < 0.00008) {
-      return (float)(0.75 * currentDb + 0.25 * 42.0);
+      return (float)(0.80 * currentDb + 0.20 * 42.0);
     }
 
     // Convert normalized RMS to dBFS, then map to Sound Pressure Level (dB SPL)
@@ -243,9 +259,14 @@ float readMicrophoneDb() {
     double spl = dbfs + 106.0;
 
     if (spl < 38.0) spl = 38.0;
-    if (spl > 105.0) spl = 105.0;
+    if (spl > 110.0) spl = 110.0;
 
-    return (float)(0.60 * currentDb + 0.40 * spl);
+    // Fast-Attack (instant peak capture on claps/shouts), Smooth-Decay (ambient recovery)
+    if (spl > currentDb) {
+      return (float)(0.15 * currentDb + 0.85 * spl); // Fast attack on loud sound
+    } else {
+      return (float)(0.70 * currentDb + 0.30 * spl); // Smooth decay back to ambient
+    }
   }
   return currentDb;
 }
@@ -316,53 +337,48 @@ void parseSerialCommands() {
     String line = Serial.readStringUntil('\n');
     line.trim();
     if (line.startsWith("{") && line.endsWith("}")) {
-      bool buzz = currentBuzzer;
-      String led = currentLedColor;
-
       if (line.indexOf("\"buzzer\": 1") > 0 || line.indexOf("\"buzzer\":1") > 0 || line.indexOf("\"buzzer\": true") > 0) {
-        buzz = true;
+        remoteBuzzer = true;
       } else if (line.indexOf("\"buzzer\": 0") > 0 || line.indexOf("\"buzzer\":0") > 0 || line.indexOf("\"buzzer\": false") > 0) {
-        buzz = false;
+        remoteBuzzer = false;
       }
 
       if (line.indexOf("\"RED\"") > 0 || line.indexOf("\"red\"") > 0) {
-        led = "RED";
+        remoteLed = "RED";
       } else if (line.indexOf("\"YELLOW\"") > 0 || line.indexOf("\"yellow\"") > 0) {
-        led = "YELLOW";
+        remoteLed = "YELLOW";
       } else if (line.indexOf("\"GREEN\"") > 0 || line.indexOf("\"green\"") > 0) {
-        led = "GREEN";
+        remoteLed = "GREEN";
       } else if (line.indexOf("\"BLUE\"") > 0 || line.indexOf("\"blue\"") > 0) {
-        led = "BLUE";
+        remoteLed = "BLUE";
       }
 
       lastSerialCmdTime = millis();
-      applyActuators(led, buzz);
+      hasRemoteCommand = true;
     }
   }
 }
 
 // ---------------- SETUP & INITIALIZATION ----------------
 void setup() {
+  // 1. Disable hardware brownout detector to prevent reboot loops from USB voltage dips
+  WRITE_PERI_REG(RTC_CNTL_BROWN_OUT_REG, 0);
+
   Serial.begin(115200);
-  delay(1000);
+  delay(500);
 
   // GPIO Pins
   pinMode(PIN_LED_RED, OUTPUT);
   pinMode(PIN_LED_GREEN, OUTPUT);
   pinMode(PIN_LED_BLUE, OUTPUT);
   pinMode(PIN_BUZZER, OUTPUT);
+  #if ENABLE_SOS_BUTTON
   pinMode(PIN_BUTTON_SOS, INPUT_PULLUP);
+  #endif
 
+  // Ensure buzzer starts completely OFF
+  digitalWrite(PIN_BUZZER, LOW);
   applyActuators("GREEN", false);
-
-  // Power-On Self Test: Two Startup Chirps
-  digitalWrite(PIN_BUZZER, HIGH);
-  delay(80);
-  digitalWrite(PIN_BUZZER, LOW);
-  delay(80);
-  digitalWrite(PIN_BUZZER, HIGH);
-  delay(80);
-  digitalWrite(PIN_BUZZER, LOW);
 
   // Initialize Sensors
   dht.begin();
@@ -382,13 +398,16 @@ void setup() {
     display.setCursor(14, 48);
     display.println("All Sensors Booted");
     display.display();
-    delay(1200);
+    delay(500);
   }
 
   // Initialize 802.11 Wi-Fi Promiscuous Sniffer
   WiFi.mode(WIFI_STA);
   WiFi.disconnect();
   delay(100);
+
+  // Reduce TX power for sniffer: saves ~120mA and eliminates power rail dips
+  WiFi.setTxPower(WIFI_POWER_11dBm);
 
   wifi_promiscuous_filter_t filt = {
     .filter_mask = WIFI_PROMIS_FILTER_MASK_MGMT
@@ -436,26 +455,31 @@ void loop() {
   }
 
   // 6. Check Emergency SOS Push Button (Active LOW)
-  if (digitalRead(PIN_BUTTON_SOS) == LOW) {
-    sosActive = true;
-    applyActuators("RED", true);
-  } else if (sosActive) {
-    sosActive = false;
-    applyActuators("GREEN", false);
-  }
+  #if ENABLE_SOS_BUTTON
+  sosActive = (digitalRead(PIN_BUTTON_SOS) == LOW);
+  #else
+  sosActive = false;
+  #endif
 
-  // 7. Automatic Local Safety Thresholds (Autonomous edge control when no serial override)
-  if (!sosActive && (now - lastSerialCmdTime > 3000)) {
-    if (currentDb >= 90.0) {
-      // Acoustic panic / screaming / loud surge: RED LED + BUZZER ALARM!
-      applyActuators("RED", true);
-    } else if (currentDb >= 75.0) {
-      // Elevated crowd noise: YELLOW Caution, Buzzer OFF
-      applyActuators("YELLOW", false);
-    } else {
-      // Normal safe ambient (<75 dB): GREEN, Buzzer OFF
-      applyActuators("GREEN", false);
-    }
+  // 7. Multi-Tier Actuator Decision Logic (Immediate Local & Cloud Safety Hierarchy):
+  if (sosActive) {
+    // 🚨 Priority 1: Physical SOS Panic Button pressed
+    applyActuators("RED", true);
+  } else if (currentDb >= 78.0) {
+    // 🚨 Priority 2: Immediate Local Acoustic Emergency (Shouting, clapping, loud sound >= 78 dB)
+    applyActuators("RED", true);
+  } else if (hasRemoteCommand && (now - lastSerialCmdTime <= 3000) && (remoteLed == "RED" || remoteBuzzer)) {
+    // 🚨 Priority 3: Backend Computer Vision detected critical crowd stampede
+    applyActuators("RED", remoteBuzzer);
+  } else if (currentDb >= 68.0) {
+    // ⚠️ Priority 4: Moderate noise / crowd buildup (68–77 dB)
+    applyActuators("YELLOW", false);
+  } else if (hasRemoteCommand && (now - lastSerialCmdTime <= 3000)) {
+    // 💻 Priority 5: Backend nominal command (e.g. Yellow from camera density, Green from nominal)
+    applyActuators(remoteLed, remoteBuzzer);
+  } else {
+    // 🟢 Priority 6: Safe Room Ambient (<68 dB)
+    applyActuators("GREEN", false);
   }
 
   // 8. Transmit Telemetry JSON to CrowdPulse Backend (every 500ms)

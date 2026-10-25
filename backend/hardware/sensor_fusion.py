@@ -157,15 +157,15 @@ class SensorFusionEngine:
             motion_detected=hardware_state.motion_detected
         )
 
-        if hardware_state.sos_active:
+        if hardware_state.sos_active or hardware_state.noise_db >= 78.0:
             threat_level = "CRITICAL"
-            combined_score = 100.0
+            combined_score = 100.0 if hardware_state.sos_active else max(combined_score, 85.0)
             is_confirmed_alert = True
         elif combined_score > 70.0 and is_confirmed_alert:
             threat_level = "CRITICAL"
-        elif combined_score > 45.0 or level == "WARNING" or hardware_state.noise_db > 85.0:
+        elif combined_score > 45.0 or level == "WARNING" or hardware_state.noise_db >= 68.0:
             threat_level = "WARNING"
-        elif combined_score > 25.0 or level == "ELEVATED" or hardware_state.noise_db > 75.0:
+        elif combined_score > 25.0 or level == "ELEVATED" or hardware_state.noise_db >= 62.0:
             threat_level = "ELEVATED"
         else:
             threat_level = "SAFE"
