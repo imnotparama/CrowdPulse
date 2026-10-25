@@ -80,12 +80,15 @@ async def get_status() -> dict[str, Any]:
 
     return {
         "uptime_seconds": uptime,
-        "model": "YOLOv8m",
+        "model": getattr(processor, "model_name", "yolov8m.pt").replace(".pt", "").upper(),
         "backend_fps": backend_fps,
         "ws_clients": 1,
         "recording": processor.is_recording,
         "mode": "THERMAL" if processor.heatmap_mode else "OPTICAL",
         "active_wifi_zones": active_zones,
+        "active_video": getattr(processor, "active_video_id", "demo.mp4"),
+        "active_video_name": getattr(processor, "active_video_name", "Demo 1: Main Concourse"),
+        "is_simulation": False,
         "hardware_status": hw_state.hardware_status,
         "sensor_health": hw_state.sensor_health,
         "temperature": hw_state.temperature,
@@ -98,6 +101,63 @@ async def get_recordings() -> list[str]:
     files = list(RECORDINGS_DIR.glob("*.mp4")) + list(RECORDINGS_DIR.glob("*.webm"))
     files.sort(key=lambda f: f.stat().st_mtime, reverse=True)
     return [f.name for f in files]
+
+
+# ── Demo Video Management Endpoints ──────────────────────────────────────────
+
+class VideoSelectPayload(BaseModel):
+    video_id: str
+
+
+@app.get("/api/videos")
+async def get_videos() -> list[dict[str, Any]]:
+    """Returns list of all available real demo videos with metadata and active status."""
+    return processor.get_available_videos()
+
+
+@app.post("/api/videos/select")
+async def select_video(payload: VideoSelectPayload) -> dict[str, Any]:
+    """Switch active video feed to the specified video ID or sector name."""
+    success = processor.switch_video(payload.video_id)
+    if not success:
+        raise HTTPException(status_code=404, detail=f"Video '{payload.video_id}' not found or could not be opened.")
+    return {
+        "status": "ok",
+        "active_video": processor.active_video_id,
+        "active_video_name": processor.active_video_name,
+    }
+
+
+# ── Phone Camera Stream Endpoints ─────────────────────────────────────────────
+
+class PhoneConnectPayload(BaseModel):
+    url: str
+
+
+@app.post("/api/phone/connect")
+async def connect_phone(payload: PhoneConnectPayload) -> dict[str, Any]:
+    """Connect to a phone camera stream (IP Webcam, DroidCam, IP Camera Lite, etc.)."""
+    success, msg = processor.connect_phone_stream(payload.url)
+    if not success:
+        raise HTTPException(status_code=400, detail=msg)
+    return {
+        "status": "ok",
+        "message": msg,
+        "active_video": processor.active_video_id,
+        "active_video_name": processor.active_video_name,
+        "stream_url": getattr(processor, "phone_stream_url", payload.url),
+    }
+
+
+@app.get("/api/phone/status")
+async def get_phone_status() -> dict[str, Any]:
+    """Returns phone stream connection status."""
+    return {
+        "is_connected": getattr(processor, "_using_phone_stream", False),
+        "stream_url": getattr(processor, "phone_stream_url", None),
+        "active_video": processor.active_video_id,
+        "active_video_name": processor.active_video_name,
+    }
 
 
 # ── Wi-Fi ESP32 Endpoints ─────────────────────────────────────────────────────
@@ -163,6 +223,15 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
                     processor.stop_recording()
                 elif action == "set_geofence":
                     processor.set_geofence(cmd_data.get("points", []))
+                elif action in ("switch_video", "set_video_source", "set_camera", "select_camera"):
+                    vid_target = cmd_data.get("video_id") or cmd_data.get("camera") or cmd_data.get("cam") or cmd_data.get("source")
+                    if vid_target:
+                        processor.switch_video(str(vid_target))
+                elif action in ("connect_phone", "set_phone_stream"):
+                    phone_url = cmd_data.get("url")
+                    if phone_url:
+                        ok, msg = processor.connect_phone_stream(phone_url)
+                        await websocket.send_json({"type": "phone_connect_result", "success": ok, "message": msg})
                 elif action == "hardware_override":
                     buzzer = cmd_data.get("buzzer")
                     led = cmd_data.get("led")

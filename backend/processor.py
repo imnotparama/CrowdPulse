@@ -52,14 +52,15 @@ class VideoProcessor:
 
         # Track whether the active source is the HTTP phone stream
         self._using_phone_stream: bool = False
+        self.phone_stream_url: Optional[str] = PHONE_STREAM_URL if PHONE_STREAM_URL and PHONE_STREAM_URL.lower() != "none" else None
 
         # GPU auto-detect
         self.device: str = "cuda" if torch.cuda.is_available() else "cpu"
         print(f"[CrowdPulse] Device: {self.device}")
 
-        # YOLOv8m — superior dense crowd detection
-        model_name: str = "yolov8m.pt"
-        self.model: YOLO = YOLO(model_name)
+        # YOLO Model — configurable via env YOLO_MODEL (default: yolov8m.pt)
+        self.model_name: str = os.environ.get("YOLO_MODEL", "yolov8m.pt")
+        self.model: YOLO = YOLO(self.model_name)
         self.model.to(self.device)
 
         # State for optical flow
@@ -68,7 +69,7 @@ class VideoProcessor:
         # Warmup at 320x180 — matches inference resolution
         dummy: np.ndarray = np.zeros((180, 320, 3), dtype=np.uint8)
         self.model.predict(dummy, verbose=False, imgsz=320)
-        print(f"[CrowdPulse] {model_name} warmed up on {self.device}")
+        print(f"[CrowdPulse] {self.model_name} warmed up on {self.device}")
 
         self.analyzer: DensityAnalyzer = DensityAnalyzer()
         self.fusion_engine: SensorFusionEngine = SensorFusionEngine()
@@ -114,17 +115,305 @@ class VideoProcessor:
         self._ws_frame_counter: int = 0
         self._ws_skip: int = 2 if self.device == "cpu" else 1
 
+        self.active_video_id: str = "demo.mp4"
+        self.active_video_name: str = "Demo 1: Main Concourse"
+
         os.makedirs("backend/recordings", exist_ok=True)
 
         # ── Source priority resolution (only when no explicit source given) ──────
         if not self.video_source:
             self._resolve_source()
+        else:
+            self.active_video_id = os.path.basename(str(self.video_source))
+            self.active_video_name = self.active_video_id
 
     # ─────────────────────────────────────────────────────────────────────────────
-    # SOURCE PRIORITY RESOLUTION — Phone stream ALWAYS tried first
+    # VIDEO DISCOVERY & DYNAMIC SWITCHING
+    # ─────────────────────────────────────────────────────────────────────────────
+    def get_available_videos(self) -> list[dict[str, Any]]:
+        """Discovers and returns metadata for all demo videos in the videos directory."""
+        search_dirs = [VIDEOS_DIR, BASE_DIR.parent / "videos"]
+        discovered_paths: list[Path] = []
+        for sdir in search_dirs:
+            if sdir.exists():
+                for ext in ("*.mp4", "*.avi", "*.mov", "*.mkv", "*.webm"):
+                    for p in sdir.glob(ext):
+                        try:
+                            resolved = p.resolve()
+                            if resolved not in discovered_paths:
+                                discovered_paths.append(resolved)
+                        except Exception:
+                            pass
+
+        videos_list: list[dict[str, Any]] = []
+        for p in discovered_paths:
+            fname = p.name
+            vid_id = fname
+            if fname.lower() == "demo.mp4":
+                title = "Demo 1: Main Concourse"
+                desc = "High-density crowd flow • Primary surveillance sector"
+                sector = "Entrance"
+            elif fname.lower() == "demo2.mp4":
+                title = "Demo 2: Gateway Transit"
+                desc = "Pedestrian corridor flow & bottleneck tracking"
+                sector = "Gate A"
+            else:
+                title = f"Demo: {p.stem.replace('_', ' ').title()}"
+                desc = f"Recorded surveillance footage ({p.suffix.upper()})"
+                sector = "Surveillance"
+
+            videos_list.append({
+                "id": vid_id,
+                "title": title,
+                "filename": fname,
+                "path": str(p),
+                "description": desc,
+                "sector": sector,
+                "is_active": (getattr(self, "active_video_id", None) == vid_id)
+            })
+
+        # Ensure demo.mp4 is first, demo2.mp4 is second
+        videos_list.sort(key=lambda x: (0 if "demo.mp4" in x["filename"].lower() else (1 if "demo2.mp4" in x["filename"].lower() else 2)))
+
+        # Add Live Webcam option
+        videos_list.append({
+            "id": "webcam",
+            "title": "Live Webcam",
+            "filename": "Local Camera (Index 0)",
+            "path": "0",
+            "description": "Real-time optical feed from built-in or USB webcam",
+            "sector": "Command Post",
+            "is_active": (getattr(self, "active_video_id", None) == "webcam")
+        })
+
+        if getattr(self, "phone_stream_url", None):
+            videos_list.append({
+                "id": "phone_stream",
+                "title": "Phone Camera (Live)",
+                "filename": "Live Wireless Feed",
+                "path": self.phone_stream_url,
+                "description": f"Live wireless edge camera • {self.phone_stream_url}",
+                "sector": "Mobile Node",
+                "is_active": (getattr(self, "active_video_id", None) == "phone_stream")
+            })
+
+        return videos_list
+
+    def switch_video(self, video_id_or_name: str) -> bool:
+        """Switch video source dynamically in real time."""
+        if not video_id_or_name:
+            return False
+
+        target_str = str(video_id_or_name).lower().strip()
+
+        # Check if switching to local webcam
+        if target_str in ("webcam", "camera", "0", "cam", "local", "live_webcam", "local camera (index 0)"):
+            with self.lock:
+                old_cap = self.cap
+                try:
+                    new_cap = cv2.VideoCapture(0)
+                    new_cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+                    if not new_cap.isOpened():
+                        print("[CrowdPulse] ❌ Failed to open local webcam (index 0).")
+                        new_cap.release()
+                        return False
+
+                    if old_cap is not None:
+                        old_cap.release()
+
+                    self.cap = new_cap
+                    self.video_source = 0
+                    self.active_video_id = "webcam"
+                    self.active_video_name = "Live Webcam (Command Post)"
+                    self._using_phone_stream = False
+                    self.source_fps = 30.0
+                    self.frame_interval = 1.0 / 30.0
+                    self.prev_gray = None
+                    self.track_history.clear()
+                    self.last_analysis = None
+                    self.last_detections = []
+                    print("[CrowdPulse] 📸 Switched to Live Webcam (Index 0)!")
+                    return True
+                except Exception as e:
+                    print(f"[CrowdPulse] ❌ Error opening webcam: {e}")
+                    return False
+
+        # Check if switching to phone camera
+        if target_str in ("phone", "phone_stream", "phone camera", "mobile"):
+            if getattr(self, "phone_stream_url", None):
+                ok, _ = self.connect_phone_stream(self.phone_stream_url)
+                return ok
+            return False
+        available = self.get_available_videos()
+        matched: Optional[dict[str, Any]] = None
+
+        # 1. Exact match on ID or filename
+        for v in available:
+            if v["id"].lower() == target_str or v["filename"].lower() == target_str:
+                matched = v
+                break
+
+        # 2. Match on sector or title keywords
+        if not matched:
+            for v in available:
+                if target_str in v["title"].lower() or target_str in v["sector"].lower():
+                    matched = v
+                    break
+
+        # 3. Match aliases: 'entrance' -> demo.mp4, 'exit' / 'gate' -> demo2.mp4
+        if not matched:
+            if target_str in ("entrance", "concourse", "demo1", "1", "cam1", "main"):
+                for v in available:
+                    if "demo.mp4" in v["filename"].lower():
+                        matched = v
+                        break
+            elif target_str in ("exit", "gate", "gate a", "transit", "demo2", "2", "cam2", "food court"):
+                for v in available:
+                    if "demo2.mp4" in v["filename"].lower():
+                        matched = v
+                        break
+
+        # 4. Direct file path check
+        if not matched and os.path.exists(video_id_or_name):
+            matched = {
+                "id": os.path.basename(video_id_or_name),
+                "title": os.path.basename(video_id_or_name),
+                "filename": os.path.basename(video_id_or_name),
+                "path": os.path.abspath(video_id_or_name),
+                "sector": "Custom",
+                "description": "Direct file path video source"
+            }
+
+        if not matched:
+            print(f"[CrowdPulse] ❌ Video '{video_id_or_name}' not found in available demo videos.")
+            return False
+
+        new_path = matched["path"]
+        print(f"[CrowdPulse] 🔄 Switching active video feed to: {matched['title']} ({new_path})")
+
+        with self.lock:
+            old_cap = self.cap
+            try:
+                new_cap = cv2.VideoCapture(new_path)
+                new_cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+                if not new_cap.isOpened():
+                    print(f"[CrowdPulse] ❌ Failed to open video file: {new_path}")
+                    new_cap.release()
+                    return False
+
+                # Successfully opened new video
+                if old_cap is not None:
+                    old_cap.release()
+
+                self.cap = new_cap
+                self.video_source = new_path
+                self.active_video_id = matched["id"]
+                self.active_video_name = matched["title"]
+                self._using_phone_stream = False
+
+                src_fps: float = self.cap.get(cv2.CAP_PROP_FPS)
+                if src_fps and src_fps > 0:
+                    self.source_fps = src_fps
+                    self.frame_interval = 1.0 / min(src_fps, 30.0)
+
+                # Reset visual tracking & flow state
+                self.prev_gray = None
+                self.track_history.clear()
+                self.last_analysis = None
+                self.last_detections = []
+                self.last_boxes_raw = []
+                if self.heatmap_accumulator is not None:
+                    self.heatmap_accumulator.fill(0)
+
+                print(f"[CrowdPulse] ✅ Successfully switched to {matched['title']} at {self.source_fps:.1f} FPS")
+                return True
+            except Exception as e:
+                print(f"[CrowdPulse] ❌ Exception switching video: {e}")
+                return False
+
+    def connect_phone_stream(self, stream_url: str) -> tuple[bool, str]:
+        """Validates, probes, and hot-swaps to an IP camera or phone stream."""
+        if not stream_url or not str(stream_url).strip():
+            return False, "Stream URL cannot be empty."
+
+        clean_url = str(stream_url).strip()
+        parsed = urlparse(clean_url)
+        if not parsed.scheme:
+            clean_url = "http://" + clean_url
+            parsed = urlparse(clean_url)
+
+        if not parsed.path or parsed.path == "/":
+            clean_url = clean_url.rstrip("/") + "/video"
+
+        print(f"[CrowdPulse] 📱 Testing phone stream at: {clean_url}")
+
+        if not _check_stream_reachability(clean_url, timeout=2.0):
+            return False, f"Host {parsed.hostname}:{parsed.port or 8080} unreachable. Make sure phone and PC are on the same Wi-Fi and IP camera server is running."
+
+        try:
+            test_cap = cv2.VideoCapture(clean_url)
+            test_cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+            if not test_cap.isOpened():
+                test_cap.release()
+                return False, "Could not open video stream. Check IP and port."
+
+            ret, test_frame = test_cap.read()
+            if not ret or test_frame is None:
+                test_cap.release()
+                return False, "Stream opened but returned no video frame. Check camera permissions in phone app."
+
+            with self.lock:
+                old_cap = self.cap
+                self.cap = test_cap
+                if old_cap is not None:
+                    try:
+                        old_cap.release()
+                    except Exception:
+                        pass
+
+                self.video_source = clean_url
+                self.phone_stream_url = clean_url
+                self.active_video_id = "phone_stream"
+                self.active_video_name = "Phone Camera (Live)"
+                self._using_phone_stream = True
+                self.source_fps = 30.0
+                self.frame_interval = 1.0 / 30.0
+
+                # Reset visual tracking & flow state
+                self.prev_gray = None
+                self.track_history.clear()
+                self.last_analysis = None
+                self.last_detections = []
+                self.last_boxes_raw = []
+                if self.heatmap_accumulator is not None:
+                    self.heatmap_accumulator.fill(0)
+
+            print(f"[CrowdPulse] ✅ Phone camera successfully connected: {clean_url}")
+            return True, "Phone camera connected successfully."
+        except Exception as e:
+            print(f"[CrowdPulse] ❌ Exception connecting phone camera: {e}")
+            return False, str(e)
+
+    # ─────────────────────────────────────────────────────────────────────────────
+    # SOURCE PRIORITY RESOLUTION — Local demo videos ALWAYS prioritized
     # ─────────────────────────────────────────────────────────────────────────────
     def _resolve_source(self) -> None:
-        # ── Priority 1: Phone stream (only if reachable) ─────────────────────────
+        # ── Priority 1: Local demo video files (demo.mp4, demo2.mp4) ───────────────
+        available = self.get_available_videos()
+        if available:
+            default_vid = available[0]
+            for v in available:
+                if "demo.mp4" in v["filename"].lower():
+                    default_vid = v
+                    break
+            self.video_source = default_vid["path"]
+            self.active_video_id = default_vid["id"]
+            self.active_video_name = default_vid["title"]
+            self._using_phone_stream = False
+            print(f"[CrowdPulse] 📹 Loaded primary demo video: {self.active_video_name} ({self.video_source})")
+            return
+
+        # ── Priority 2: Phone stream (only if configured and reachable) ───────────
         if PHONE_STREAM_URL and PHONE_STREAM_URL.lower() != "none":
             print(f"[CrowdPulse] Probing phone stream: {PHONE_STREAM_URL}")
             if _check_stream_reachability(PHONE_STREAM_URL, timeout=1.0):
@@ -139,31 +428,18 @@ class VideoProcessor:
 
                 if connected:
                     self.video_source = PHONE_STREAM_URL
+                    self.active_video_id = "phone_stream"
+                    self.active_video_name = "Live Phone Stream"
                     self._using_phone_stream = True
                     print("[CrowdPulse] ✅ Phone stream connected!")
                     return
             print("[CrowdPulse] ❌ Phone stream unreachable, checking local videos...")
 
-        # ── Priority 2: Local video files ─────────────────────────────────────────
-        search_patterns: list[str] = [
-            str(VIDEOS_DIR / "*.mp4"),
-            str(VIDEOS_DIR / "*.avi"),
-            str(VIDEOS_DIR / "*.mov"),
-            str(VIDEOS_DIR / "*.mkv"),
-        ]
-        found_videos: list[str] = []
-        for pattern in search_patterns:
-            found_videos.extend(glob.glob(pattern))
-
-        if found_videos:
-            self.video_source = os.path.abspath(found_videos[0])
-            self._using_phone_stream = False
-            print(f"[CrowdPulse] 📹 Local video: {self.video_source}")
-            return
-
-        # ── Priority 3: Simulation mode ───────────────────────────────────────────
-        print("[CrowdPulse] 🔲 No video found. Running in simulation mode.")
+        # ── Priority 3: Simulation fallback only if no videos exist ───────────────
+        print("[CrowdPulse] 🔲 No demo video files found. Running in simulation mode.")
         self.video_source = None
+        self.active_video_id = "simulation"
+        self.active_video_name = "Synthetic Simulation"
 
     # ─────────────────────────────────────────────────────────────────────────────
 
@@ -402,9 +678,11 @@ class VideoProcessor:
                         self.track_history.clear()
                         continue
                     else:
-                        # Local video file — loop back to start
-                        self.cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
+                        # Local video file — loop back to start seamlessly
+                        if self.cap is not None:
+                            self.cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
                         self.track_history.clear()
+                        self.prev_gray = None
                         continue
 
                 # ── Aspect ratio crop & resize for RENDERING at 640x360 ───────────
@@ -466,6 +744,11 @@ class VideoProcessor:
                     else:
                         analysis_result = self.analyzer.analyze([], (width, height))
                     analysis_result['image'] = b64
+                    analysis_result['timestamp'] = now
+                    analysis_result['active_video'] = self.active_video_id
+                    analysis_result['active_video_name'] = self.active_video_name
+                    analysis_result['video_source'] = self.active_video_id
+                    analysis_result['is_simulation'] = False
                     analysis_result['mode'] = 'THERMAL' if self.heatmap_mode else 'OPTICAL'
                     analysis_result['recording'] = self.is_recording
                     analysis_result['agitation'] = self.agitation_index
@@ -593,6 +876,10 @@ class VideoProcessor:
                 sim_buf: np.ndarray
                 _ret, sim_buf = cv2.imencode('.jpg', dummy, sim_params)
                 analysis_result_sim['image'] = base64.b64encode(sim_buf).decode('utf-8')
+                analysis_result_sim['timestamp'] = t
+                analysis_result_sim['active_video'] = "simulation"
+                analysis_result_sim['active_video_name'] = "Simulation"
+                analysis_result_sim['is_simulation'] = True
                 analysis_result_sim['recording'] = False
                 analysis_result_sim['agitation'] = float(45 + 10 * np.sin(t))
                 analysis_result_sim['predicted_density'] = float(analysis_result_sim.get('density', 0)) * (1.0 + (analysis_result_sim['agitation'] / 100.0) * 0.5)
@@ -607,11 +894,15 @@ class VideoProcessor:
 
                 frame_data = analysis_result_sim
                 frame_count = frame_count + 1  # pyre-ignore
-                time.sleep(0.033)
 
-            if frame_count % 2 == 0:
-                with self.lock:
-                    self.latest_data = frame_data
+            # Pace the processing loop to match the target frame interval
+            loop_duration = time.time() - loop_start
+            sleep_needed = self.frame_interval - loop_duration
+            if sleep_needed > 0:
+                time.sleep(sleep_needed)
+
+            with self.lock:
+                self.latest_data = frame_data
 
     def get_latest_data(self) -> Optional[dict[str, Any]]:
         with self.lock:

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Shield, Clock, AlertCircle, User, FolderLock, FileText, Command, Volume2, VolumeX } from 'lucide-react';
+import { Shield, Clock, AlertCircle, User, FolderLock, FileText, Command, Volume2, VolumeX, Cpu } from 'lucide-react';
 
 interface HeaderProps {
   status: string;
@@ -13,6 +13,7 @@ interface HeaderProps {
   onOpenLocker?: () => void;
   onOpenReport?: () => void;
   onOpenPalette?: () => void;
+  onOpenHardware?: () => void;
 }
 
 export const Header: React.FC<HeaderProps> = ({
@@ -25,6 +26,7 @@ export const Header: React.FC<HeaderProps> = ({
   onOpenLocker,
   onOpenReport,
   onOpenPalette,
+  onOpenHardware,
 }) => {
   const [time, setTime] = useState(new Date());
   const [profileOpen, setProfileOpen] = useState(false);
@@ -110,6 +112,18 @@ export const Header: React.FC<HeaderProps> = ({
 
       {/* ── 3. Right: Emergency Button & Profile ── */}
       <div className="flex items-center gap-3">
+        {/* ESP32 Hardware Connect Button */}
+        {onOpenHardware && (
+          <button
+            onClick={onOpenHardware}
+            className="px-3.5 py-1.5 rounded-full text-xs font-medium text-cyan-300 bg-cyan-500/10 border border-cyan-500/30 hover:bg-cyan-500/20 hover:text-white transition-all flex items-center gap-1.5 shadow-sm active:scale-95 cursor-pointer"
+            title="Connect ESP32 / Arduino Hardware Node (COM4)"
+          >
+            <Cpu size={13} strokeWidth={2} className="text-cyan-400" />
+            <span>Connect ESP32</span>
+          </button>
+        )}
+
         {/* Emergency Button */}
         {onToggleSos && (
           <button

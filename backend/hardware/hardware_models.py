@@ -42,6 +42,7 @@ class HardwareState(BaseModel):
     sensor_score: float = 22.0
     latency_ms: float = 12.0
     device_id: str = "ESP32-S3-01"
+    connection_type: str = "SIMULATED"
 
 
 class FusionResult(BaseModel):

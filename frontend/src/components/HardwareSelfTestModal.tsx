@@ -1,6 +1,25 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
-import { X, CheckCircle2, ShieldCheck, Cpu, Mic, Thermometer, Radio, Volume2, RefreshCw, Zap, Play } from 'lucide-react';
+import {
+  X,
+  CheckCircle2,
+  ShieldCheck,
+  Cpu,
+  Mic,
+  Thermometer,
+  Radio,
+  Volume2,
+  RefreshCw,
+  Zap,
+  Play,
+  Usb,
+  Wifi,
+  Copy,
+  Check,
+  Plug,
+  Terminal,
+  AlertTriangle,
+} from 'lucide-react';
 
 export interface SelfTestReport {
   status: string;
@@ -51,6 +70,13 @@ export interface SelfTestReport {
   };
 }
 
+interface SerialPortInfo {
+  port: string;
+  description: string;
+  hardware_id: string;
+  manufacturer?: string;
+}
+
 interface HardwareSelfTestModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -58,6 +84,7 @@ interface HardwareSelfTestModalProps {
   isRunning: boolean;
   onRunTest: () => void;
   onOverrideActuator?: (buzzer: boolean | null, led: string | null) => void;
+  initialTab?: 'diagnostics' | 'actuators' | 'hardware_setup';
 }
 
 export const HardwareSelfTestModal: React.FC<HardwareSelfTestModalProps> = ({
@@ -67,9 +94,110 @@ export const HardwareSelfTestModal: React.FC<HardwareSelfTestModalProps> = ({
   isRunning,
   onRunTest,
   onOverrideActuator,
+  initialTab = 'hardware_setup',
 }) => {
-  const [activeTestTab, setActiveTestTab] = useState<'diagnostics' | 'actuators'>('diagnostics');
+  const [activeTestTab, setActiveTestTab] = useState<'diagnostics' | 'actuators' | 'hardware_setup'>(initialTab);
   const [pulseActive, setPulseActive] = useState(false);
+
+  // Real Hardware Serial & Network States
+  const [ports, setPorts] = useState<SerialPortInfo[]>([]);
+  const [selectedPort, setSelectedPort] = useState<string>('');
+  const [baudRate, setBaudRate] = useState<number>(115200);
+  const [serialConnected, setSerialConnected] = useState<boolean>(false);
+  const [serialActivePort, setSerialActivePort] = useState<string | null>(null);
+  const [packetsReceived, setPacketsReceived] = useState<number>(0);
+  const [lastPacketRaw, setLastPacketRaw] = useState<string | null>(null);
+  const [serialError, setSerialError] = useState<string | null>(null);
+  const [isConnectingSerial, setIsConnectingSerial] = useState<boolean>(false);
+  const [networkInfo, setNetworkInfo] = useState<{ host_ip: string; telemetry_url: string } | null>(null);
+  const [copiedUrl, setCopiedUrl] = useState<boolean>(false);
+
+  // Fetch Serial Ports & Network Info when modal opens
+  const refreshHardwareData = async () => {
+    try {
+      const [portsRes, statusRes, netRes] = await Promise.all([
+        fetch('http://127.0.0.1:8000/api/hardware/serial/ports'),
+        fetch('http://127.0.0.1:8000/api/hardware/serial/status'),
+        fetch('http://127.0.0.1:8000/api/hardware/network/info'),
+      ]);
+
+      if (portsRes.ok) {
+        const portsData: SerialPortInfo[] = await portsRes.json();
+        setPorts(portsData);
+        if (portsData.length > 0 && !selectedPort) {
+          setSelectedPort(portsData[0].port);
+        }
+      }
+
+      if (statusRes.ok) {
+        const statusData = await statusRes.json();
+        setSerialConnected(statusData.connected || false);
+        setSerialActivePort(statusData.port || null);
+        setPacketsReceived(statusData.packets_received || 0);
+        setLastPacketRaw(statusData.last_packet_raw || null);
+        setSerialError(statusData.last_error || null);
+      }
+
+      if (netRes.ok) {
+        const netData = await netRes.json();
+        setNetworkInfo(netData);
+      }
+    } catch (err) {
+      console.warn('Failed to refresh hardware data', err);
+    }
+  };
+
+  useEffect(() => {
+    if (isOpen) {
+      refreshHardwareData();
+      const interval = setInterval(refreshHardwareData, 2000);
+      return () => clearInterval(interval);
+    }
+  }, [isOpen, selectedPort]);
+
+  const handleConnectSerial = async () => {
+    if (!selectedPort) return;
+    setIsConnectingSerial(true);
+    setSerialError(null);
+    try {
+      const res = await fetch('http://127.0.0.1:8000/api/hardware/serial/connect', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ port: selectedPort, baudrate: baudRate }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setSerialConnected(true);
+        setSerialActivePort(selectedPort);
+      } else {
+        setSerialError(data.detail || 'Connection failed');
+      }
+    } catch (e: any) {
+      setSerialError(e.message || 'Network error');
+    } finally {
+      setIsConnectingSerial(false);
+      refreshHardwareData();
+    }
+  };
+
+  const handleDisconnectSerial = async () => {
+    try {
+      await fetch('http://127.0.0.1:8000/api/hardware/serial/disconnect', { method: 'POST' });
+      setSerialConnected(false);
+      setSerialActivePort(null);
+    } catch {
+      // ignore
+    } finally {
+      refreshHardwareData();
+    }
+  };
+
+  const handleCopyUrl = () => {
+    if (!networkInfo) return;
+    navigator.clipboard.writeText(networkInfo.telemetry_url);
+    setCopiedUrl(true);
+    setTimeout(() => setCopiedUrl(false), 2000);
+  };
 
   const handlePulseBuzzer = () => {
     if (onOverrideActuator) {
@@ -129,6 +257,18 @@ export const HardwareSelfTestModal: React.FC<HardwareSelfTestModalProps> = ({
             <div className="flex items-center justify-between px-4 py-2 border-b border-white/[0.06] bg-black/20">
               <div className="flex items-center gap-1.5">
                 <button
+                  onClick={() => setActiveTestTab('hardware_setup')}
+                  className={`px-3 py-1 rounded-lg text-xs font-mono font-semibold transition-all flex items-center gap-1.5 ${
+                    activeTestTab === 'hardware_setup'
+                      ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 shadow-sm'
+                      : 'text-zinc-400 hover:text-zinc-200'
+                  }`}
+                >
+                  <Plug size={12} />
+                  <span>Connect Real Hardware</span>
+                  {serialConnected && <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />}
+                </button>
+                <button
                   onClick={() => setActiveTestTab('diagnostics')}
                   className={`px-3 py-1 rounded-lg text-xs font-mono font-semibold transition-all ${
                     activeTestTab === 'diagnostics'
@@ -150,19 +290,288 @@ export const HardwareSelfTestModal: React.FC<HardwareSelfTestModalProps> = ({
                 </button>
               </div>
 
-              <button
-                onClick={onRunTest}
-                disabled={isRunning}
-                className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-cyan-500/15 border border-cyan-500/40 text-cyan-300 text-xs font-mono font-bold hover:bg-cyan-500/25 transition-all disabled:opacity-50 shadow-[0_0_12px_rgba(0,224,255,0.2)]"
-              >
-                <RefreshCw size={12} className={isRunning ? 'animate-spin' : ''} />
-                <span>{isRunning ? 'RUNNING TEST...' : 'RE-RUN BENCHMARK'}</span>
-              </button>
+              {activeTestTab === 'diagnostics' ? (
+                <button
+                  onClick={onRunTest}
+                  disabled={isRunning}
+                  className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-cyan-500/15 border border-cyan-500/40 text-cyan-300 text-xs font-mono font-bold hover:bg-cyan-500/25 transition-all disabled:opacity-50 shadow-[0_0_12px_rgba(0,224,255,0.2)]"
+                >
+                  <RefreshCw size={12} className={isRunning ? 'animate-spin' : ''} />
+                  <span>{isRunning ? 'RUNNING TEST...' : 'RE-RUN BENCHMARK'}</span>
+                </button>
+              ) : (
+                <button
+                  onClick={refreshHardwareData}
+                  className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-white/[0.05] border border-white/10 text-zinc-300 text-xs font-mono hover:bg-white/[0.1] transition-all"
+                  title="Scan for USB Ports & Network changes"
+                >
+                  <RefreshCw size={12} />
+                  <span>SCAN HARDWARE</span>
+                </button>
+              )}
             </div>
 
             {/* Modal Content */}
             <div className="flex-1 overflow-y-auto p-4 md:p-6 space-y-4">
-              {activeTestTab === 'diagnostics' ? (
+              {activeTestTab === 'hardware_setup' ? (
+                /* ── Real Hardware Setup (USB Serial & Wi-Fi) ── */
+                <div className="space-y-4">
+                  {/* Status Banner */}
+                  <div className={`p-4 rounded-xl border flex items-center justify-between shadow-lg ${
+                    serialConnected || report?.connection_mode === 'HARDWARE_CONNECTED'
+                      ? 'bg-emerald-950/20 border-emerald-500/40 shadow-emerald-950/20'
+                      : 'bg-[#141418] border-white/[0.08]'
+                  }`}>
+                    <div className="flex items-center gap-3">
+                      <div className={`p-2.5 rounded-xl border ${
+                        serialConnected || report?.connection_mode === 'HARDWARE_CONNECTED'
+                          ? 'bg-emerald-500/20 border-emerald-500/40 text-emerald-400'
+                          : 'bg-amber-500/15 border-amber-500/30 text-amber-400'
+                      }`}>
+                        <Cpu size={20} />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-semibold text-white">
+                            {serialConnected
+                              ? `USB Serial Hardware Connected (${serialActivePort})`
+                              : report?.connection_mode === 'HARDWARE_CONNECTED'
+                              ? 'Wi-Fi Physical Node Connected'
+                              : 'Waiting for Physical Microcontroller'}
+                          </span>
+                          <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full border ${
+                            serialConnected || report?.connection_mode === 'HARDWARE_CONNECTED'
+                              ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30 font-bold'
+                              : 'bg-zinc-800 text-zinc-400 border-zinc-700'
+                          }`}>
+                            {serialConnected ? 'SERIAL LIVE' : report?.connection_mode === 'HARDWARE_CONNECTED' ? 'WIFI LIVE' : 'SYNTHETIC FALLBACK'}
+                          </span>
+                        </div>
+                        <p className="text-xs text-zinc-400 mt-0.5">
+                          {serialConnected
+                            ? `Streaming continuous telemetry from ${serialActivePort} • ${packetsReceived} packets ingested`
+                            : 'Plug in via USB cable or stream over Wi-Fi. Synthetic telemetry active in background.'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Dual Connection Modes Grid */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Method 1: USB Serial Port */}
+                    <div className="p-4 rounded-xl bg-white/[0.02] border border-white/[0.08] flex flex-col justify-between gap-3">
+                      <div>
+                        <div className="flex items-center justify-between pb-2 border-b border-white/[0.06]">
+                          <span className="flex items-center gap-2 text-xs font-semibold text-white">
+                            <Usb size={15} className="text-cyan-400" />
+                            <span>Option 1: Direct USB Serial</span>
+                          </span>
+                          <span className="text-[10px] font-mono text-cyan-400 bg-cyan-500/10 px-2 py-0.5 rounded border border-cyan-500/20">
+                            Zero-Config
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-zinc-400 mt-2 leading-relaxed">
+                          Connect your ESP32 or Arduino Uno directly with a USB data cable. Auto-detects serial COM ports.
+                        </p>
+
+                        <div className="mt-3 space-y-2">
+                          <label className="text-[10px] font-mono text-zinc-400 uppercase tracking-wider block">
+                            Detected COM Ports:
+                          </label>
+                          {ports.length > 0 ? (
+                            <select
+                              value={selectedPort}
+                              onChange={(e) => setSelectedPort(e.target.value)}
+                              disabled={serialConnected}
+                              className="w-full bg-[#18181D] border border-white/[0.1] rounded-lg px-3 py-2 text-xs text-white font-mono focus:border-cyan-500 focus:outline-none"
+                            >
+                              {ports.map((p) => (
+                                <option key={p.port} value={p.port}>
+                                  {p.port} — {p.description}
+                                </option>
+                              ))}
+                            </select>
+                          ) : (
+                            <div className="p-2.5 rounded-lg bg-zinc-900/60 border border-white/[0.05] text-[11px] text-zinc-400 flex items-center justify-between">
+                              <span>No COM ports currently detected</span>
+                              <button
+                                onClick={refreshHardwareData}
+                                className="text-[10px] font-mono text-cyan-400 hover:underline flex items-center gap-1"
+                              >
+                                <RefreshCw size={10} /> Scan
+                              </button>
+                            </div>
+                          )}
+
+                          <div className="flex items-center gap-2 mt-1">
+                            <div className="flex-1">
+                              <label className="text-[10px] font-mono text-zinc-400 uppercase tracking-wider block mb-1">
+                                Baud Rate:
+                              </label>
+                              <select
+                                value={baudRate}
+                                onChange={(e) => setBaudRate(Number(e.target.value))}
+                                disabled={serialConnected}
+                                className="w-full bg-[#18181D] border border-white/[0.1] rounded-lg px-2.5 py-1.5 text-xs text-zinc-300 font-mono"
+                              >
+                                <option value={115200}>115200 (ESP32 / Standard)</option>
+                                <option value={9600}>9600 (Legacy Arduino)</option>
+                              </select>
+                            </div>
+                          </div>
+
+                          {serialError && (
+                            <div className="p-2 rounded bg-rose-500/10 border border-rose-500/30 text-rose-300 text-[11px] font-mono flex items-center gap-1.5">
+                              <AlertTriangle size={12} />
+                              <span>{serialError}</span>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="pt-2 border-t border-white/[0.06] flex items-center gap-2">
+                        {!serialConnected ? (
+                          <button
+                            onClick={handleConnectSerial}
+                            disabled={!selectedPort || isConnectingSerial}
+                            className="flex-1 py-2 px-3 rounded-xl bg-cyan-500/20 border border-cyan-500/40 text-cyan-300 hover:bg-cyan-500/30 text-xs font-mono font-bold transition-all disabled:opacity-40 flex items-center justify-center gap-2 shadow-[0_0_15px_rgba(0,224,255,0.2)]"
+                          >
+                            <Plug size={13} />
+                            <span>{isConnectingSerial ? 'CONNECTING...' : 'CONNECT SERIAL PORT'}</span>
+                          </button>
+                        ) : (
+                          <button
+                            onClick={handleDisconnectSerial}
+                            className="flex-1 py-2 px-3 rounded-xl bg-rose-500/20 border border-rose-500/40 text-rose-300 hover:bg-rose-500/30 text-xs font-mono font-bold transition-all flex items-center justify-center gap-2"
+                          >
+                            <X size={13} />
+                            <span>DISCONNECT {serialActivePort}</span>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Method 2: Wi-Fi HTTP Streaming */}
+                    <div className="p-4 rounded-xl bg-white/[0.02] border border-white/[0.08] flex flex-col justify-between gap-3">
+                      <div>
+                        <div className="flex items-center justify-between pb-2 border-b border-white/[0.06]">
+                          <span className="flex items-center gap-2 text-xs font-semibold text-white">
+                            <Wifi size={15} className="text-emerald-400" />
+                            <span>Option 2: Wireless Wi-Fi Node</span>
+                          </span>
+                          <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
+                            Remote Edge
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-zinc-400 mt-2 leading-relaxed">
+                          Stream telemetry over local 2.4GHz Wi-Fi or phone hotspot directly to the CrowdPulse FastAPI endpoint.
+                        </p>
+
+                        <div className="mt-3 space-y-2">
+                          <label className="text-[10px] font-mono text-zinc-400 uppercase tracking-wider block">
+                            Your Local Server Telemetry URL:
+                          </label>
+                          <div className="flex items-center gap-2 bg-[#18181D] border border-white/[0.1] rounded-lg p-2 font-mono text-xs text-emerald-300">
+                            <span className="flex-1 truncate select-all">
+                              {networkInfo?.telemetry_url || 'http://192.168.1.8:8000/api/hardware/telemetry'}
+                            </span>
+                            <button
+                              onClick={handleCopyUrl}
+                              className="p-1.5 rounded bg-white/[0.06] hover:bg-white/[0.12] text-white transition-colors"
+                              title="Copy URL"
+                            >
+                              {copiedUrl ? <Check size={13} className="text-emerald-400" /> : <Copy size={13} />}
+                            </button>
+                          </div>
+
+                          <div className="p-2.5 rounded-lg bg-black/40 border border-white/[0.05] text-[10px] font-mono text-zinc-400 space-y-1">
+                            <div className="flex justify-between">
+                              <span>HOST IP:</span>
+                              <span className="text-zinc-200">{networkInfo?.host_ip || '192.168.1.8'}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span>HTTP PORT:</span>
+                              <span className="text-zinc-200">8000</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span>PATH:</span>
+                              <span className="text-cyan-300">/api/hardware/telemetry</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="pt-2 border-t border-white/[0.06] text-center">
+                        <span className="text-[10px] font-mono text-zinc-500">
+                          Supports HTTP POST JSON & WebSocket
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Live Packet Raw Feed / Diagnostics Box */}
+                  <div className="p-3.5 rounded-xl bg-black/50 border border-white/[0.08] font-mono text-xs space-y-2">
+                    <div className="flex items-center justify-between text-zinc-400 text-[11px] pb-1.5 border-b border-white/[0.06]">
+                      <span className="flex items-center gap-1.5">
+                        <Terminal size={13} className="text-cyan-400" />
+                        <span>Real-Time Sensor Bus Telemetry</span>
+                      </span>
+                      <span className="text-[10px] text-zinc-500">
+                        {packetsReceived > 0 ? `${packetsReceived} packets ingested` : 'Continuous Listening'}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2 pt-1">
+                      <div className="bg-[#18181D] p-2 rounded-lg border border-white/[0.04]">
+                        <span className="text-[10px] text-zinc-400 block">AM2302 Temperature</span>
+                        <span className="text-sm font-semibold text-white">
+                          {report?.diagnostics.am2302_dht22.temperature_c ?? 24.5}°C
+                        </span>
+                      </div>
+                      <div className="bg-[#18181D] p-2 rounded-lg border border-white/[0.04]">
+                        <span className="text-[10px] text-zinc-400 block">AM2302 Humidity</span>
+                        <span className="text-sm font-semibold text-white">
+                          {report?.diagnostics.am2302_dht22.humidity_rh ?? 52.0}%
+                        </span>
+                      </div>
+                      <div className="bg-[#18181D] p-2 rounded-lg border border-white/[0.04]">
+                        <span className="text-[10px] text-zinc-400 block">Acoustic Sound Level</span>
+                        <span className="text-sm font-semibold text-cyan-300">
+                          {report?.diagnostics.inmp441_microphone.noise_floor_db ?? 58.0} dB
+                        </span>
+                      </div>
+                      <div className="bg-[#18181D] p-2 rounded-lg border border-white/[0.04]">
+                        <span className="text-[10px] text-zinc-400 block">PIR Kinematic Motion</span>
+                        <span className="text-sm font-semibold text-emerald-400">
+                          {report?.diagnostics.pir_motion.pin_state ?? 'READY'}
+                        </span>
+                      </div>
+                    </div>
+
+                    {lastPacketRaw && (
+                      <div className="mt-2 p-2 rounded bg-black/60 border border-white/[0.04] text-[10px] text-emerald-400 font-mono overflow-x-auto truncate">
+                        {lastPacketRaw}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Ready-to-Flash Firmware Notice */}
+                  <div className="p-3 rounded-xl bg-cyan-950/20 border border-cyan-500/20 text-xs text-zinc-300 flex items-center justify-between">
+                    <div>
+                      <span className="font-semibold text-cyan-300">Firmware Ready to Flash:</span>
+                      <p className="text-[11px] text-zinc-400 mt-0.5">
+                        Arduino C++ sketches are prepared in <span className="font-mono text-zinc-200">firmware/esp32_crowdpulse/</span> and <span className="font-mono text-zinc-200">firmware/arduino_uno_crowdpulse/</span>.
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => setActiveTestTab('actuators')}
+                      className="px-3 py-1.5 rounded-lg bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-300 text-xs font-mono font-semibold transition-all whitespace-nowrap ml-3"
+                    >
+                      Test Actuators →
+                    </button>
+                  </div>
+                </div>
+              ) : activeTestTab === 'diagnostics' ? (
                 <>
                   {/* Overall Vitals Banner */}
                   <div className="p-3.5 rounded-xl bg-emerald-500/[0.06] border border-emerald-500/30 flex items-center justify-between shadow-[0_0_20px_rgba(0,255,136,0.1)]">

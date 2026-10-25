@@ -1,4 +1,5 @@
 backend/videos/
+videos/
 .venv/
 venv/
 node_modules/

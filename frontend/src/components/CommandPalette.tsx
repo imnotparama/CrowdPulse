@@ -14,6 +14,7 @@ import {
   Layers,
   ArrowRight,
   Zap,
+  Smartphone,
 } from 'lucide-react';
 
 export interface CommandItem {
@@ -40,6 +41,7 @@ interface CommandPaletteProps {
   onPulseBuzzer: () => void;
   onPoliceLed: () => void;
   onResetActuators: () => void;
+  onOpenPhoneCamera?: () => void;
 }
 
 export const CommandPalette: React.FC<CommandPaletteProps> = ({
@@ -56,57 +58,42 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
   onPulseBuzzer,
   onPoliceLed,
   onResetActuators,
+  onOpenPhoneCamera,
 }) => {
   const [search, setSearch] = useState('');
   const [selectedIndex, setSelectedIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const commands: CommandItem[] = [
-    // Cameras
+    // Real Demo Surveillance Cameras
     {
-      id: 'cam-entrance',
+      id: 'cam-demo1',
       category: 'CAMERAS',
-      title: 'Switch to Entrance Feed',
-      description: 'Main pedestrian arrival turnstiles',
+      title: 'Demo 1: Main Concourse (demo.mp4)',
+      description: 'High-density concourse crowd surveillance • Real YOLOv8m',
       icon: Camera,
       shortcut: '1',
-      action: () => onSelectCamera('Entrance'),
+      action: () => onSelectCamera('demo.mp4'),
     },
     {
-      id: 'cam-exit',
+      id: 'cam-demo2',
       category: 'CAMERAS',
-      title: 'Switch to Exit Feed',
-      description: 'North egress clearance corridor',
+      title: 'Demo 2: Gateway Transit (demo2.mp4)',
+      description: 'Pedestrian chokepoint corridor flow • Real Optical Flow',
       icon: Camera,
       shortcut: '2',
-      action: () => onSelectCamera('Exit'),
+      action: () => onSelectCamera('demo2.mp4'),
     },
     {
-      id: 'cam-foodcourt',
+      id: 'cam-phone',
       category: 'CAMERAS',
-      title: 'Switch to Food Court Feed',
-      description: 'High-dwell central gathering atrium',
-      icon: Camera,
-      shortcut: '3',
-      action: () => onSelectCamera('Food Court'),
-    },
-    {
-      id: 'cam-gatea',
-      category: 'CAMERAS',
-      title: 'Switch to Gate A Feed',
-      description: 'Secondary queuing choke point',
-      icon: Camera,
-      shortcut: '4',
-      action: () => onSelectCamera('Gate A'),
-    },
-    {
-      id: 'cam-parking',
-      category: 'CAMERAS',
-      title: 'Switch to Parking Feed',
-      description: 'Exterior perimeter & vehicular transition',
-      icon: Camera,
-      shortcut: '5',
-      action: () => onSelectCamera('Parking'),
+      title: 'Connect Phone Camera (Wireless Live Stream)',
+      description: 'Stream directly from your Android or iPhone IP camera',
+      icon: Smartphone,
+      shortcut: 'P',
+      action: () => {
+        if (onOpenPhoneCamera) onOpenPhoneCamera();
+      },
     },
 
     // Vision

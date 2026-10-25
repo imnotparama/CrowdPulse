@@ -4,7 +4,7 @@ import { Sparkles, ChevronDown } from 'lucide-react';
 import Header from './components/Header';
 import StatusCardsRow from './components/StatusCardsRow';
 import AIInsightsCard from './components/AIInsightsCard';
-import VideoFeed from './components/VideoFeed';
+import VideoFeed, { type DemoVideoInfo } from './components/VideoFeed';
 import Timeline from './components/Timeline';
 import RiskGauge from './components/RiskGauge';
 import LiveMap from './components/LiveMap';
@@ -15,6 +15,7 @@ import SplashScreen from './components/SplashScreen';
 import { EnvironmentCard, HardwareCard } from './components/HardwareSensorWidget';
 import HardwareSelfTestModal, { type SelfTestReport } from './components/HardwareSelfTestModal';
 import ForensicReportModal from './components/ForensicReportModal';
+import PhoneCameraModal from './components/PhoneCameraModal';
 import CommandPalette from './components/CommandPalette';
 
 interface WifiZone {
@@ -40,7 +41,11 @@ function App() {
     return () => clearTimeout(safetyTimer);
   }, []);
 
-  const [activeCamera, setActiveCamera] = useState('Entrance');
+  const [activeCamera, setActiveCamera] = useState('demo.mp4');
+  const [activeVideoName, setActiveVideoName] = useState('Demo 1: Main Concourse');
+  const [availableVideos, setAvailableVideos] = useState<DemoVideoInfo[]>([]);
+  const [phoneModalOpen, setPhoneModalOpen] = useState(false);
+  const [phoneStreamUrl, setPhoneStreamUrl] = useState<string | null>(null);
   const [sosMode, setSosMode] = useState(false);
 
   // Video frame lives in a ref to prevent 30+ full-tree React re-renders per second
@@ -76,6 +81,7 @@ function App() {
     buzzer_state: false,
     led_state: 'GREEN' as 'GREEN' | 'YELLOW' | 'RED',
     hardware_status: 'SIMULATED' as 'CONNECTED' | 'TIMEOUT' | 'SIMULATED',
+    connection_type: 'SIMULATED' as 'USB_SERIAL' | 'WIFI' | 'SIMULATED' | 'DISCONNECTED',
     environment_risk: 18.0,
     fusion_confidence: 0.94,
     sensor_score: 22.0,
@@ -207,6 +213,25 @@ function App() {
     }
   };
 
+  const fetchVideos = async () => {
+    try {
+      const res = await fetch('http://127.0.0.1:8000/api/videos');
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data) && data.length > 0) {
+          setAvailableVideos(data);
+          const active = data.find((v: any) => v.is_active);
+          if (active) {
+            setActiveCamera(active.id);
+            setActiveVideoName(active.title);
+          }
+        }
+      }
+    } catch (e) {
+      console.error('Failed to fetch available demo videos', e);
+    }
+  };
+
   const connectWebSocket = () => {
     if (ws.current && ws.current.readyState === WebSocket.OPEN) return;
 
@@ -231,6 +256,13 @@ function App() {
 
       if (data.image) {
         imageRef.current = data.image;
+      }
+
+      if (data.active_video && data.active_video !== 'simulation') {
+        setActiveCamera(data.active_video);
+      }
+      if (data.active_video_name && data.active_video_name !== 'Simulation') {
+        setActiveVideoName(data.active_video_name);
       }
 
       wsMessageCount.current += 1;
@@ -300,6 +332,7 @@ function App() {
           buzzer_state: data.buzzer_state ?? prev.buzzer_state,
           led_state: data.led_state ?? prev.led_state,
           hardware_status: data.hardware_status ?? prev.hardware_status,
+          connection_type: data.connection_type ?? prev.connection_type,
           environment_risk: data.environment_risk ?? prev.environment_risk,
           fusion_confidence: data.fusion_confidence ?? prev.fusion_confidence,
           sensor_score: data.sensor_score ?? prev.sensor_score,
@@ -332,6 +365,8 @@ function App() {
 
   useEffect(() => {
     connectWebSocket();
+    fetchRecordings();
+    fetchVideos();
     return () => {
       if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
       ws.current?.close();
@@ -420,11 +455,35 @@ function App() {
     }
   };
 
-  const handleCameraChange = (cam: string) => {
+  const handleCameraChange = async (cam: string) => {
     if (cam === activeCamera) return;
     playSound('click');
     setActiveCamera(cam);
-    speakText(`Switching feed to ${cam}`);
+
+    const matched = availableVideos.find(
+      (v) =>
+        v.id.toLowerCase() === cam.toLowerCase() ||
+        v.filename.toLowerCase() === cam.toLowerCase() ||
+        (cam.toLowerCase().includes('demo 1') && v.filename.includes('demo.mp4')) ||
+        (cam.toLowerCase().includes('demo 2') && v.filename.includes('demo2.mp4')) ||
+        (cam.toLowerCase() === 'entrance' && v.filename.includes('demo.mp4')) ||
+        (cam.toLowerCase() === 'gate a' && v.filename.includes('demo2.mp4')) ||
+        (cam.toLowerCase() === 'exit' && v.filename.includes('demo2.mp4'))
+    );
+    const title = matched ? matched.title : cam;
+    setActiveVideoName(title);
+    speakText(`Switching video feed to ${title}`);
+
+    sendCommand('switch_video', { video_id: cam });
+    try {
+      await fetch('http://127.0.0.1:8000/api/videos/select', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ video_id: cam }),
+      });
+    } catch (err) {
+      console.error('Failed to select video via API', err);
+    }
   };
 
 
@@ -472,6 +531,7 @@ function App() {
         }}
         onOpenReport={() => setReportOpen(true)}
         onOpenPalette={() => setPaletteOpen(true)}
+        onOpenHardware={() => setSelfTestOpen(true)}
       />
 
       {/* ── Main Viewport Container ── */}
@@ -497,6 +557,8 @@ function App() {
             isRecording={stats.recording}
             visionMode={stats.mode}
             activeCamera={activeCamera}
+            activeVideoName={activeVideoName}
+            availableVideos={availableVideos}
             soundEnabled={soundEnabled}
             status={sosMode ? 'EVACUATE' : stats.status}
             flowDirection={stats.flow_direction}
@@ -508,6 +570,7 @@ function App() {
             onToggleSound={() => setSoundEnabled(!soundEnabled)}
             onSetGeofence={(points) => sendCommand('set_geofence', { points })}
             onSelectCamera={handleCameraChange}
+            onOpenPhoneModal={() => setPhoneModalOpen(true)}
           />
         </div>
 
@@ -542,9 +605,11 @@ function App() {
           {/* Card 4: Hardware Card (ESP32 Connected, Latency 24ms, 30 FPS, WiFi Stable, Diagnostics) */}
           <HardwareCard
             hardwareStatus={stats.hardware_status}
+            connectionType={stats.connection_type}
             latencyMs={24}
             fps={30}
             onOpenSelfTest={runHardwareSelfTest}
+            onOpenHardwareSetup={() => setSelfTestOpen(true)}
           />
         </div>
 
@@ -633,6 +698,20 @@ function App() {
         alertHistory={alertHistory}
       />
 
+      {/* ── Wireless Phone Camera Edge Node Modal ── */}
+      <PhoneCameraModal
+        isOpen={phoneModalOpen}
+        onClose={() => setPhoneModalOpen(false)}
+        currentStreamUrl={phoneStreamUrl}
+        onConnectSuccess={(url) => {
+          setPhoneStreamUrl(url);
+          setActiveCamera('phone_stream');
+          setActiveVideoName('Phone Camera (Live)');
+          speakText('Phone camera connected');
+          fetchVideos();
+        }}
+      />
+
       {/* ── Operational Command Palette (Ctrl+K) ── */}
       <CommandPalette
         isOpen={paletteOpen}
@@ -660,6 +739,7 @@ function App() {
         }}
         onPoliceLed={() => overrideHardwareActuator(null, 'POLICE')}
         onResetActuators={resetHardwareActuators}
+        onOpenPhoneCamera={() => setPhoneModalOpen(true)}
       />
     </div>
   );

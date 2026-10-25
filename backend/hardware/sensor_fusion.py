@@ -226,6 +226,7 @@ class SensorFusionEngine:
         vision_data["buzzer_state"] = buzzer_active
         vision_data["led_state"] = led_color
         vision_data["hardware_status"] = hardware_state.hardware_status
+        vision_data["connection_type"] = hardware_state.connection_type
         vision_data["environment_risk"] = round(env_risk, 1)
         vision_data["fusion_confidence"] = round(self.smoothed_confidence, 2)
         vision_data["sensor_score"] = hardware_state.sensor_score

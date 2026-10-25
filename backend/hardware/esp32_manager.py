@@ -12,6 +12,7 @@ import time
 from typing import Optional, Any
 from hardware.hardware_models import ESP32TelemetryPacket, HardwareState, ActuatorControl
 from hardware.sensor_processor import SensorProcessor
+from hardware.serial_manager import serial_manager
 
 
 class ESP32Manager:
@@ -26,18 +27,23 @@ class ESP32Manager:
         self.last_packet: Optional[ESP32TelemetryPacket] = None
         self.last_packet_time: float = 0.0
         self.has_physical_device: bool = False
+        self.connection_source: str = "SIMULATED"  # "WIFI", "SERIAL", or "SIMULATED"
 
         # Actuators
         self.buzzer_override: Optional[bool] = None
         self.led_override: Optional[str] = None
         self.actuator_control: ActuatorControl = ActuatorControl(buzzer=False, led_color="GREEN")
 
-    def ingest_packet(self, packet: ESP32TelemetryPacket) -> dict[str, str]:
-        """Receives a telemetry packet from physical ESP32-S3 over Wi-Fi."""
+        # Register callback for USB Serial hardware listener
+        serial_manager.on_packet_callback = self.ingest_packet
+
+    def ingest_packet(self, packet: ESP32TelemetryPacket, source: str = "WIFI") -> dict[str, str]:
+        """Receives a telemetry packet from physical ESP32-S3 / Arduino over Wi-Fi or USB Serial."""
         with self.lock:
             self.last_packet = packet
             self.last_packet_time = time.time()
             self.has_physical_device = True
+            self.connection_source = source
 
             # Return actuator feedback to ESP32
             return {
@@ -52,6 +58,7 @@ class ESP32Manager:
             final_buzzer = self.buzzer_override if self.buzzer_override is not None else buzzer
             final_led = self.led_override if self.led_override is not None else led_color
             self.actuator_control = ActuatorControl(buzzer=final_buzzer, led_color=final_led)
+        serial_manager.write_actuator_state(final_buzzer, final_led)
 
     def override_actuators(self, buzzer: Optional[bool] = None, led: Optional[str] = None) -> dict[str, str]:
         """Manually overrides physical actuator states for testing or emergency dispatch."""
@@ -65,18 +72,22 @@ class ESP32Manager:
             final_led = self.led_override if self.led_override is not None else self.actuator_control.led_color
             self.actuator_control = ActuatorControl(buzzer=final_buzzer, led_color=final_led)
 
-            return {
-                "status": "applied",
-                "buzzer": "ON" if final_buzzer else "OFF",
-                "led": final_led
-            }
+        serial_manager.write_actuator_state(final_buzzer, final_led)
+        return {
+            "status": "applied",
+            "buzzer": "ON" if final_buzzer else "OFF",
+            "led": final_led
+        }
 
     def reset_overrides(self) -> dict[str, str]:
         """Restores actuators to automatic AI-fused closed-loop control."""
         with self.lock:
             self.buzzer_override = None
             self.led_override = None
-            return {"status": "reset", "mode": "AUTO"}
+            final_buzzer = self.actuator_control.buzzer
+            final_led = self.actuator_control.led_color
+        serial_manager.write_actuator_state(final_buzzer, final_led)
+        return {"status": "reset", "mode": "AUTO"}
 
     def run_self_test(self) -> dict[str, Any]:
         """
@@ -162,6 +173,7 @@ class ESP32Manager:
                     latency_ms=max(8.0, (now - self.last_packet_time) * 1000.0)
                 )
                 state.hardware_status = "CONNECTED"
+                state.connection_type = "USB_SERIAL" if self.connection_source == "SERIAL" else "WIFI"
                 state.buzzer_state = self.actuator_control.buzzer
                 state.led_state = self.actuator_control.led_color
                 return state
@@ -174,6 +186,7 @@ class ESP32Manager:
                     latency_ms=999.0
                 )
                 state.hardware_status = "TIMEOUT"
+                state.connection_type = "DISCONNECTED"
                 state.sensor_health = "DEGRADED"
                 state.buzzer_state = self.actuator_control.buzzer
                 state.led_state = self.actuator_control.led_color
@@ -202,6 +215,7 @@ class ESP32Manager:
                     latency_ms=12.0 + random.uniform(-1.5, 2.5)
                 )
                 state.hardware_status = "SIMULATED"
+                state.connection_type = "SIMULATED"
                 state.buzzer_state = self.actuator_control.buzzer
                 state.led_state = self.actuator_control.led_color
                 return state

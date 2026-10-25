@@ -113,14 +113,18 @@ export const EnvironmentCard: React.FC<{
  */
 export const HardwareCard: React.FC<{
   hardwareStatus?: string;
+  connectionType?: string;
   latencyMs?: number;
   fps?: number;
   onOpenSelfTest?: () => void;
+  onOpenHardwareSetup?: () => void;
 }> = ({
   hardwareStatus = 'Connected',
+  connectionType = 'SIMULATED',
   latencyMs = 24,
   fps = 30,
   onOpenSelfTest,
+  onOpenHardwareSetup,
 }) => {
   return (
     <div className="card-apple p-5 flex flex-col justify-between h-full animate-apple-in delay-400">
@@ -130,25 +134,46 @@ export const HardwareCard: React.FC<{
           <Cpu size={16} strokeWidth={1.75} className="text-[#00B5FF]" />
           <span className="text-sm font-medium text-white">Hardware</span>
         </div>
-        {onOpenSelfTest && (
-          <button
-            onClick={onOpenSelfTest}
-            className="text-xs text-[#B9B9C5] hover:text-white bg-[#1C1C21] hover:bg-[#24242A] px-2.5 py-1 rounded-full border border-white/[0.05] transition-all transform active:scale-95"
-          >
-            Diagnostics
-          </button>
-        )}
+        <div className="flex items-center gap-1.5">
+          {(onOpenHardwareSetup || onOpenSelfTest) && (
+            <button
+              onClick={onOpenHardwareSetup || onOpenSelfTest}
+              className="text-xs text-cyan-300 hover:text-white bg-cyan-500/10 hover:bg-cyan-500/20 px-2.5 py-1 rounded-full border border-cyan-500/30 transition-all transform active:scale-95 font-medium"
+              title="Connect physical ESP32 or Arduino via USB or Wi-Fi"
+            >
+              + Connect Hardware
+            </button>
+          )}
+          {onOpenSelfTest && (
+            <button
+              onClick={onOpenSelfTest}
+              className="text-xs text-[#B9B9C5] hover:text-white bg-[#1C1C21] hover:bg-[#24242A] px-2.5 py-1 rounded-full border border-white/[0.05] transition-all transform active:scale-95"
+            >
+              Diagnostics
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Hardware Status Vitals (Apple / Tesla OS style) */}
       <div className="my-3 space-y-2.5 text-xs">
         <div className="flex items-center justify-between py-1">
           <span className="text-[#B9B9C5] flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-[#1ED760] animate-beacon-green" />
-            ESP32 Edge Node
+            <span className={`w-2 h-2 rounded-full ${
+              connectionType === 'USB_SERIAL' || connectionType === 'WIFI' || hardwareStatus === 'CONNECTED'
+                ? 'bg-[#1ED760] animate-beacon-green'
+                : 'bg-amber-400'
+            }`} />
+            Edge Microcontroller
           </span>
           <span className="text-white font-medium">
-            {hardwareStatus === 'CONNECTED' ? 'Connected' : 'Active (Simulated)'}
+            {connectionType === 'USB_SERIAL'
+              ? 'Connected (USB COM)'
+              : connectionType === 'WIFI'
+              ? 'Connected (Wi-Fi)'
+              : hardwareStatus === 'CONNECTED'
+              ? 'Connected (Live)'
+              : 'Active (Simulated)'}
           </span>
         </div>
 

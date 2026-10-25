@@ -1,20 +1,31 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
+  Camera,
+  Maximize2,
+  Minimize2,
+  Flame,
   Eye,
   Volume2,
   VolumeX,
-  Maximize2,
-  Minimize2,
-  Camera,
-  Layers,
-  Flame,
   MousePointer2,
+  Video,
+  CheckCircle2,
+  Smartphone,
 } from 'lucide-react';
 
-interface SectorData {
+export interface SectorData {
   name: string;
   count: number;
   status: string;
+}
+
+export interface DemoVideoInfo {
+  id: string;
+  title: string;
+  filename: string;
+  description?: string;
+  sector?: string;
+  is_active?: boolean;
 }
 
 interface VideoFeedProps {
@@ -22,6 +33,8 @@ interface VideoFeedProps {
   isRecording: boolean;
   visionMode: string;
   activeCamera: string;
+  activeVideoName?: string;
+  availableVideos?: DemoVideoInfo[];
   soundEnabled: boolean;
   status: string;
   flowDirection?: { angle: number; label: string };
@@ -31,14 +44,24 @@ interface VideoFeedProps {
   onToggleSound: () => void;
   onSetGeofence: (points: { x: number; y: number }[]) => void;
   onSelectCamera?: (cam: string) => void;
+  onOpenPhoneModal?: () => void;
 }
 
-const CAMERAS = [
-  { id: 'Entrance', label: 'Entrance' },
-  { id: 'Exit', label: 'Exit' },
-  { id: 'Food Court', label: 'Food Court' },
-  { id: 'Gate A', label: 'Gate A' },
-  { id: 'Parking', label: 'Parking' },
+const DEFAULT_VIDEOS: DemoVideoInfo[] = [
+  {
+    id: 'demo.mp4',
+    title: 'Demo 1: Main Concourse',
+    filename: 'demo.mp4',
+    description: 'High-density concourse crowd surveillance',
+    sector: 'Entrance',
+  },
+  {
+    id: 'demo2.mp4',
+    title: 'Demo 2: Gateway Transit',
+    filename: 'demo2.mp4',
+    description: 'Pedestrian chokepoint corridor flow',
+    sector: 'Gate A',
+  },
 ];
 
 export const VideoFeed: React.FC<VideoFeedProps> = ({
@@ -46,25 +69,55 @@ export const VideoFeed: React.FC<VideoFeedProps> = ({
   isRecording,
   visionMode,
   activeCamera,
+  activeVideoName,
+  availableVideos = DEFAULT_VIDEOS,
   soundEnabled,
   onToggleRecord,
   onToggleVision,
   onToggleSound,
   onSetGeofence,
   onSelectCamera,
+  onOpenPhoneModal,
 }) => {
   const [drawingMode, setDrawingMode] = useState(false);
   const [points, setPoints] = useState<{ x: number; y: number }[]>([]);
-  const [fps, setFps] = useState(30);
+  const [fps, setFps] = useState(25);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [hasImage, setHasImage] = useState(false);
   const [showHeatmap, setShowHeatmap] = useState(false);
-  const [showHudBoxes, setShowHudBoxes] = useState(true);
+  const [viewportSize, setViewportSize] = useState<'compact' | 'standard' | 'large'>('compact');
 
   const containerRef = useRef<HTMLDivElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
   const frameTimestamps = useRef<number[]>([]);
   const rafRef = useRef<number>(0);
+
+  const videoList = availableVideos && availableVideos.length > 0 ? availableVideos : DEFAULT_VIDEOS;
+
+  // Determine active item helper
+  const isVideoActive = (vid: DemoVideoInfo) => {
+    if (!activeCamera) return vid.id === 'demo.mp4';
+    const normActive = activeCamera.toLowerCase();
+    const normId = vid.id.toLowerCase();
+    const normFile = vid.filename.toLowerCase();
+    const normTitle = vid.title.toLowerCase();
+    const normSector = (vid.sector || '').toLowerCase();
+
+    return (
+      normActive === normId ||
+      normActive === normFile ||
+      normActive.includes(normFile) ||
+      normActive === normTitle ||
+      normActive === normSector ||
+      (normActive.includes('demo 1') && normFile.includes('demo.mp4')) ||
+      (normActive.includes('demo 2') && normFile.includes('demo2.mp4')) ||
+      (normActive === 'entrance' && normFile.includes('demo.mp4')) ||
+      (normActive === 'gate a' && normFile.includes('demo2.mp4')) ||
+      (normActive === 'exit' && normFile.includes('demo2.mp4'))
+    );
+  };
+
+  const currentActiveVid = videoList.find(isVideoActive) || videoList[0];
 
   useEffect(() => {
     let lastSrc = '';
@@ -103,7 +156,7 @@ export const VideoFeed: React.FC<VideoFeedProps> = ({
   const handleSnapshot = () => {
     if (!imgRef.current) return;
     const link = document.createElement('a');
-    link.download = `crowdpulse-snapshot-${Date.now()}.jpg`;
+    link.download = `crowdpulse-${currentActiveVid?.filename || 'feed'}-${Date.now()}.jpg`;
     link.href = imgRef.current.src;
     link.click();
   };
@@ -122,54 +175,142 @@ export const VideoFeed: React.FC<VideoFeedProps> = ({
   };
 
   return (
-    <div className="card-apple p-4 flex flex-col gap-3 w-full h-full flex-1 min-h-[460px] lg:min-h-[540px] animate-apple-in delay-100">
-      {/* ── Top Bar: Segmented Channel Control & Small AI Badge ── */}
-      <div className="flex items-center justify-between gap-4">
-        {/* Apple-style segmented camera switcher */}
-        <div className="flex items-center bg-[#1C1C21] p-1 rounded-full border border-white/[0.05] overflow-x-auto scrollbar-none">
-          {CAMERAS.map((cam) => {
-            const isActive = (activeCamera || 'Entrance') === cam.id;
+    <div className="card-apple p-3.5 flex flex-col gap-3 w-full max-w-[1240px] mx-auto animate-apple-in delay-100">
+      {/* ── Top Bar: Segmented Demo Video Switcher, Viewport Sizer & AI Status Badge ── */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        {/* Apple/Tesla segmented video selector */}
+        <div className="flex items-center bg-[#1C1C21] p-1 rounded-full border border-white/[0.06] overflow-x-auto scrollbar-none shadow-inner">
+          {videoList.map((vid) => {
+            const isActive = isVideoActive(vid);
             return (
               <button
-                key={cam.id}
-                onClick={() => onSelectCamera && onSelectCamera(cam.id)}
-                className={`px-3.5 py-1.5 rounded-full text-xs font-medium transition-all duration-200 whitespace-nowrap active:scale-95 ${
+                key={vid.id}
+                onClick={() => onSelectCamera && onSelectCamera(vid.id)}
+                className={`flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-medium transition-all duration-200 whitespace-nowrap active:scale-95 ${
                   isActive
-                    ? 'bg-[#141417] text-white shadow-sm border border-white/[0.08]'
-                    : 'text-[#B9B9C5] hover:text-white'
+                    ? 'bg-[#141417] text-white shadow-md border border-white/[0.12] ring-1 ring-white/10'
+                    : 'text-[#B9B9C5] hover:text-white hover:bg-white/[0.04]'
                 }`}
+                title={vid.description || vid.title}
               >
-                {cam.label}
+                <span
+                  className={`w-1.5 h-1.5 rounded-full transition-colors ${
+                    isActive ? 'bg-[#1ED760] animate-beacon-green shadow-[0_0_8px_#1ED760]' : 'bg-zinc-600'
+                  }`}
+                />
+                <span className="font-semibold tracking-tight">{vid.title}</span>
+                <span className="text-[10px] font-mono px-1.5 py-0.2 bg-white/[0.06] rounded text-zinc-400 border border-white/[0.04]">
+                  {vid.filename}
+                </span>
               </button>
             );
           })}
+
+          {/* Connect Phone Camera Button */}
+          {onOpenPhoneModal && (
+            <button
+              onClick={onOpenPhoneModal}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold text-emerald-400 hover:text-white hover:bg-emerald-500/20 transition-all duration-200 whitespace-nowrap active:scale-95 border border-emerald-500/20"
+              title="Connect your Android or iPhone as a live wireless camera"
+            >
+              <Smartphone size={13} strokeWidth={2} />
+              <span>+ Phone Camera</span>
+            </button>
+          )}
         </div>
 
-        {/* Small AI Badge: YOLOv11 • 30 FPS with breathing beacon */}
-        <div className="flex items-center gap-2 bg-[#1C1C21] px-3.5 py-1.5 rounded-full border border-white/[0.05] text-xs font-medium shadow-sm">
-          <span className="w-2 h-2 rounded-full bg-[#1ED760] animate-beacon-green" />
-          <span className="text-white font-medium">YOLOv11</span>
-          <span className="text-[#B9B9C5]">•</span>
-          <span className="text-[#B9B9C5] font-mono">{fps || 30} FPS</span>
+        {/* Viewport Size & Status Controls */}
+        <div className="flex flex-wrap items-center gap-2.5">
+          {/* Viewport Size Switcher */}
+          <div className="flex items-center bg-[#1C1C21] p-1 rounded-full border border-white/[0.06] text-xs font-medium shadow-inner">
+            <button
+              onClick={() => setViewportSize('compact')}
+              className={`px-3 py-1 rounded-full transition-all duration-200 ${
+                viewportSize === 'compact'
+                  ? 'bg-[#141417] text-white shadow-sm border border-white/[0.1] font-semibold'
+                  : 'text-[#B9B9C5] hover:text-white'
+              }`}
+              title="Compact View (Clean, low profile)"
+            >
+              Compact
+            </button>
+            <button
+              onClick={() => setViewportSize('standard')}
+              className={`px-3 py-1 rounded-full transition-all duration-200 ${
+                viewportSize === 'standard'
+                  ? 'bg-[#141417] text-white shadow-sm border border-white/[0.1] font-semibold'
+                  : 'text-[#B9B9C5] hover:text-white'
+              }`}
+              title="Standard View"
+            >
+              Standard
+            </button>
+            <button
+              onClick={() => setViewportSize('large')}
+              className={`px-3 py-1 rounded-full transition-all duration-200 ${
+                viewportSize === 'large'
+                  ? 'bg-[#141417] text-white shadow-sm border border-white/[0.1] font-semibold'
+                  : 'text-[#B9B9C5] hover:text-white'
+              }`}
+              title="Expanded Large View"
+            >
+              Large
+            </button>
+          </div>
+
+          {/* Verified Real Footage Badge */}
+          <div className="hidden sm:flex items-center gap-1.5 bg-emerald-950/40 border border-emerald-500/20 px-3 py-1 rounded-full text-[11px] font-medium text-emerald-300">
+            <CheckCircle2 size={12} className="text-emerald-400" />
+            <span>REAL INFERENCE</span>
+          </div>
+
+          {/* YOLOv8m FPS Badge */}
+          <div className="flex items-center gap-2 bg-[#1C1C21] px-3.5 py-1.5 rounded-full border border-white/[0.06] text-xs font-medium shadow-sm">
+            <span className="w-2 h-2 rounded-full bg-[#1ED760] animate-beacon-green" />
+            <span className="text-white font-medium">YOLOv8m</span>
+            <span className="text-zinc-600">•</span>
+            <span className="text-[#B9B9C5] font-mono">{fps || 25} FPS</span>
+          </div>
         </div>
       </div>
 
-      {/* ── Main Video Player Viewport ── */}
+      {/* ── Main Video Player Viewport (Aspect-Video Constrained) ── */}
       <div
         ref={containerRef}
         onClick={handleCanvasClick}
-        className={`relative flex-1 w-full bg-[#0B0B0D] rounded-2xl overflow-hidden border border-white/[0.04] flex items-center justify-center select-none ${
+        className={`relative w-full aspect-video ${
+          viewportSize === 'compact'
+            ? 'max-h-[320px] md:max-h-[350px]'
+            : viewportSize === 'standard'
+            ? 'max-h-[410px] md:max-h-[450px]'
+            : 'max-h-[560px]'
+        } bg-[#0B0B0D] rounded-2xl overflow-hidden border border-white/[0.06] flex items-center justify-center select-none shadow-2xl transition-all duration-300 mx-auto ${
           drawingMode ? 'cursor-crosshair' : ''
         }`}
       >
-        {/* Live Frame Image */}
+        {/* Live Frame Image (OpenCV YOLOv8 Bounding Boxes + Optical Flow Rendered Natively) */}
         <img
           ref={imgRef}
-          alt=""
-          className={`w-full h-full object-contain pointer-events-none select-none transition-opacity duration-300 ${
+          alt="Live Neural Video Stream"
+          className={`w-full h-full object-contain pointer-events-none select-none transition-opacity duration-200 ${
             hasImage ? 'opacity-100' : 'opacity-0 absolute inset-0'
           }`}
         />
+
+        {/* Live Active Sector Watermark Badge */}
+        {hasImage && (
+          <div className="absolute top-3 left-3 pointer-events-none z-20 flex items-center gap-2 bg-[#141417]/85 backdrop-blur-md px-3 py-1.5 rounded-lg border border-white/[0.08] shadow-lg">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+            <div className="flex flex-col">
+              <span className="text-xs font-semibold text-white tracking-wide">
+                {activeVideoName || currentActiveVid?.title || 'Demo Feed'}
+              </span>
+              <span className="text-[10px] text-zinc-400 font-mono">
+                {currentActiveVid?.filename} • 640×360 AI Analysis
+              </span>
+            </div>
+          </div>
+        )}
 
         {/* Thermal Mode Filter */}
         {visionMode === 'THERMAL' && (
@@ -180,33 +321,6 @@ export const VideoFeed: React.FC<VideoFeedProps> = ({
         {showHeatmap && (
           <div className="absolute inset-0 pointer-events-none mix-blend-screen opacity-60">
             <div className="w-full h-full bg-[radial-gradient(circle_at_45%_55%,rgba(255,77,90,0.45)_0%,rgba(245,165,36,0.3)_35%,rgba(30,215,96,0.15)_65%,transparent_80%)]" />
-          </div>
-        )}
-
-        {/* Apple-style Detection Bounding Boxes */}
-        {showHudBoxes && hasImage && (
-          <div className="absolute inset-0 pointer-events-none">
-            {/* Person Box 1 */}
-            <div
-              className="absolute border border-white/40 bg-white/[0.03] rounded-xl transition-all duration-300"
-              style={{ top: '36%', left: '40%', width: '13%', height: '34%' }}
-            >
-              <div className="absolute -top-6 left-0 bg-[#1C1C21] px-2 py-0.5 rounded-md text-[11px] text-white font-medium border border-white/[0.08] shadow-md flex items-center gap-1.5">
-                <span>Person 18</span>
-                <span className="text-[#B9B9C5]">1.2 m/s</span>
-              </div>
-            </div>
-
-            {/* Person Box 2 */}
-            <div
-              className="absolute border border-white/40 bg-white/[0.03] rounded-xl transition-all duration-300"
-              style={{ top: '40%', left: '57%', width: '12%', height: '32%' }}
-            >
-              <div className="absolute -top-6 left-0 bg-[#1C1C21] px-2 py-0.5 rounded-md text-[11px] text-white font-medium border border-white/[0.08] shadow-md flex items-center gap-1.5">
-                <span>Person 08</span>
-                <span className="text-[#B9B9C5]">1.8 m/s</span>
-              </div>
-            </div>
           </div>
         )}
 
@@ -234,32 +348,32 @@ export const VideoFeed: React.FC<VideoFeedProps> = ({
           </svg>
         )}
 
-        {/* Standby State (Clean, Understated Apple Design) */}
+        {/* Standby / Connecting State */}
         {!hasImage && (
-          <div className="flex flex-col items-center justify-center gap-3 text-center pointer-events-none p-6">
-            <div className="w-12 h-12 rounded-2xl bg-[#1C1C21] border border-white/[0.05] flex items-center justify-center text-[#B9B9C5]">
-              <Camera size={20} strokeWidth={1.75} />
+          <div className="flex flex-col items-center justify-center gap-3 text-center pointer-events-none p-6 animate-pulse">
+            <div className="w-12 h-12 rounded-2xl bg-[#1C1C21] border border-white/[0.08] flex items-center justify-center text-zinc-400">
+              <Video size={22} strokeWidth={1.75} />
             </div>
             <div>
-              <p className="text-sm font-medium text-white">
-                Camera Feed • {activeCamera || 'Entrance'}
+              <p className="text-sm font-semibold text-white">
+                Connecting to {currentActiveVid?.title || 'Video Stream'}...
               </p>
-              <p className="text-xs text-[#B9B9C5] mt-0.5">
-                AI Vision Pipeline Active • 1080p Stream
+              <p className="text-xs text-zinc-400 mt-1">
+                YOLOv8m Neural Pipeline • Decoding {currentActiveVid?.filename}
               </p>
             </div>
           </div>
         )}
 
-        {/* ── Floating Controls Pill (Minimalist Apple/Tesla Glass) ── */}
+        {/* ── Floating Controls Pill (Minimalist Glass Design) ── */}
         <div className="absolute bottom-4 inset-x-0 flex justify-center pointer-events-none z-30">
-          <div className="glass-pill px-3 py-1.5 flex items-center gap-1.5 pointer-events-auto shadow-2xl">
+          <div className="glass-pill px-3 py-1.5 flex items-center gap-1.5 pointer-events-auto shadow-2xl backdrop-blur-xl bg-[#141417]/80 border border-white/[0.1]">
             {/* Record Button */}
             <button
               onClick={onToggleRecord}
               className={`px-3 py-1.5 rounded-full text-xs font-medium transition-all flex items-center gap-1.5 ${
                 isRecording
-                  ? 'bg-[#FF4D5A] text-white'
+                  ? 'bg-[#FF4D5A] text-white shadow-[0_0_12px_rgba(255,77,90,0.5)]'
                   : 'text-[#B9B9C5] hover:text-white hover:bg-white/[0.06]'
               }`}
               title={isRecording ? 'Stop Recording' : 'Start Recording'}
@@ -272,7 +386,7 @@ export const VideoFeed: React.FC<VideoFeedProps> = ({
               <span>{isRecording ? 'Recording' : 'Record'}</span>
             </button>
 
-            <span className="w-px h-4 bg-white/[0.08]" />
+            <span className="w-px h-4 bg-white/[0.1]" />
 
             {/* Snapshot */}
             <button
@@ -288,10 +402,10 @@ export const VideoFeed: React.FC<VideoFeedProps> = ({
               onClick={onToggleVision}
               className={`p-1.5 rounded-full transition-colors ${
                 visionMode === 'THERMAL'
-                  ? 'bg-white/[0.12] text-white'
+                  ? 'bg-white/[0.15] text-white shadow-inner'
                   : 'text-[#B9B9C5] hover:text-white hover:bg-white/[0.06]'
               }`}
-              title="Toggle Vision Spectrum"
+              title="Toggle Vision Spectrum (Thermal / Optical)"
             >
               <Eye size={15} strokeWidth={1.75} />
             </button>
@@ -301,25 +415,12 @@ export const VideoFeed: React.FC<VideoFeedProps> = ({
               onClick={() => setShowHeatmap(!showHeatmap)}
               className={`p-1.5 rounded-full transition-colors ${
                 showHeatmap
-                  ? 'bg-white/[0.12] text-white'
+                  ? 'bg-white/[0.15] text-white shadow-inner'
                   : 'text-[#B9B9C5] hover:text-white hover:bg-white/[0.06]'
               }`}
               title="Toggle Density Heatmap"
             >
               <Flame size={15} strokeWidth={1.75} />
-            </button>
-
-            {/* HUD Toggle */}
-            <button
-              onClick={() => setShowHudBoxes(!showHudBoxes)}
-              className={`p-1.5 rounded-full transition-colors ${
-                showHudBoxes
-                  ? 'bg-white/[0.12] text-white'
-                  : 'text-[#B9B9C5] hover:text-white hover:bg-white/[0.06]'
-              }`}
-              title="Toggle Detection Boxes"
-            >
-              <Layers size={15} strokeWidth={1.75} />
             </button>
 
             {/* Geofence Draw */}
@@ -330,7 +431,7 @@ export const VideoFeed: React.FC<VideoFeedProps> = ({
               }}
               className={`p-1.5 rounded-full transition-colors ${
                 drawingMode
-                  ? 'bg-[#00B5FF] text-white'
+                  ? 'bg-[#00B5FF] text-white shadow-[0_0_10px_rgba(0,181,255,0.4)]'
                   : 'text-[#B9B9C5] hover:text-white hover:bg-white/[0.06]'
               }`}
               title="Draw Monitored Zone"
@@ -351,7 +452,7 @@ export const VideoFeed: React.FC<VideoFeedProps> = ({
               )}
             </button>
 
-            <span className="w-px h-4 bg-white/[0.08]" />
+            <span className="w-px h-4 bg-white/[0.1]" />
 
             {/* Fullscreen */}
             <button
