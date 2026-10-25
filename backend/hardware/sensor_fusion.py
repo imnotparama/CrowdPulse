@@ -157,17 +157,21 @@ class SensorFusionEngine:
             motion_detected=hardware_state.motion_detected
         )
 
-        if combined_score > 70.0 and is_confirmed_alert:
+        if hardware_state.sos_active:
             threat_level = "CRITICAL"
-        elif combined_score > 45.0 or level == "WARNING":
+            combined_score = 100.0
+            is_confirmed_alert = True
+        elif combined_score > 70.0 and is_confirmed_alert:
+            threat_level = "CRITICAL"
+        elif combined_score > 45.0 or level == "WARNING" or hardware_state.noise_db > 85.0:
             threat_level = "WARNING"
-        elif combined_score > 25.0 or level == "ELEVATED":
+        elif combined_score > 25.0 or level == "ELEVATED" or hardware_state.noise_db > 75.0:
             threat_level = "ELEVATED"
         else:
             threat_level = "SAFE"
 
         # 7. Actuator Feedback (Buzzer & RGB LED)
-        buzzer_active = (threat_level == "CRITICAL")
+        buzzer_active = (threat_level == "CRITICAL" or hardware_state.sos_active)
         if threat_level == "CRITICAL":
             led_color = "RED"
         elif threat_level in ("WARNING", "ELEVATED"):
@@ -191,15 +195,30 @@ class SensorFusionEngine:
         # 9. AI Narrative
         narrative = self.generate_ai_narrative(vision_data, hardware_state, threat_level, confidence_pct)
 
-        # 10. Generate Alert Object if Critical Alert Confirmed
+        # 10. Generate Alert Object if Critical Alert Confirmed or SOS Triggered
         crowd_alert = None
-        if threat_level == "CRITICAL":
+        if hardware_state.sos_active:
+            self.consecutive_alerts += 1
+            crowd_alert = {
+                "id": 999,
+                "type": "EMERGENCY SOS (PANIC BUTTON ACTIVATED)",
+                "severity": "CRITICAL",
+                "message": "Physical emergency panic button activated on ESP32 edge sensor node! Immediate evacuation protocol initiated."
+            }
+        elif threat_level == "CRITICAL":
             self.consecutive_alerts += 1
             crowd_alert = {
                 "id": 101,
                 "type": "STAMPEDE SURGE (MULTI-SENSOR CONFIRMED)",
                 "severity": "CRITICAL",
                 "message": f"Hazard confirmed across camera (density {density:.2f}) and ESP32 ({hardware_state.noise_db:.0f} dB acoustic spike). Active buzzer triggered."
+            }
+        elif hardware_state.noise_db > 85.0:
+            crowd_alert = {
+                "id": 998,
+                "type": "ACOUSTIC SPIKE SURGE",
+                "severity": "WARNING",
+                "message": f"Acoustic surge detected ({hardware_state.noise_db:.1f} dB from INMP441 MEMS). Monitoring sector for panic."
             }
         else:
             self.consecutive_alerts = 0
@@ -221,6 +240,11 @@ class SensorFusionEngine:
         vision_data["humidity"] = hardware_state.humidity
         vision_data["noise_db"] = hardware_state.noise_db
         vision_data["motion_detected"] = hardware_state.motion_detected
+        vision_data["sos_active"] = hardware_state.sos_active
+        vision_data["active_devices"] = hardware_state.active_devices
+        vision_data["probe_rate"] = hardware_state.probe_rate
+        if hardware_state.active_devices > 0:
+            vision_data["wifi_probe_count"] = hardware_state.active_devices
         vision_data["sensor_health"] = hardware_state.sensor_health
         vision_data["sensor_timestamp"] = hardware_state.sensor_timestamp
         vision_data["buzzer_state"] = buzzer_active
@@ -237,6 +261,9 @@ class SensorFusionEngine:
         vision_data["agitation"] = round(adjusted_agitation, 1)
         vision_data["effective_max_capacity"] = effective_capacity
         vision_data["fusion_narrative"] = narrative
+
+        if threat_level == "CRITICAL":
+            vision_data["status"] = "EVACUATE"
 
         if crowd_alert is not None:
             vision_data["crowd_alert"] = crowd_alert

@@ -884,8 +884,23 @@ class VideoProcessor:
                 analysis_result_sim['agitation'] = float(45 + 10 * np.sin(t))
                 analysis_result_sim['predicted_density'] = float(analysis_result_sim.get('density', 0)) * (1.0 + (analysis_result_sim['agitation'] / 100.0) * 0.5)
                 analysis_result_sim['mode'] = 'THERMAL' if self.heatmap_mode else 'OPTICAL'
-                analysis_result_sim['fps'] = 30.0
-                analysis_result_sim['wifi_zones'] = {}
+                # ── Wi-Fi zones integration (Simulation) ──────────────────────
+                now_ts = time.time()
+                wifi_total = 0
+                wifi_zone_payload: dict[str, Any] = {}
+                for zone_name, zone_data in self.wifi_zones.items():
+                    age = now_ts - zone_data.get("timestamp", 0)
+                    zone_status = "OFFLINE" if age > 10 else "ACTIVE"
+                    if zone_status == "ACTIVE":
+                        wifi_total += int(zone_data.get("count", 0))
+                    wifi_zone_payload[zone_name] = {
+                        "count": int(zone_data.get("count", 0)),
+                        "rssi": float(zone_data.get("rssi", 0)),
+                        "status": zone_status
+                    }
+                if wifi_total > 0:
+                    analysis_result_sim['wifi_probe_count'] = wifi_total
+                analysis_result_sim['wifi_zones'] = wifi_zone_payload
 
                 # ── Multi-Sensor Hardware Fusion (Simulation) ─────────────────
                 hw_state = esp32_manager.get_hardware_state()

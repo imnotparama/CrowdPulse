@@ -1,24 +1,27 @@
 /*
  * ==============================================================================
- * CrowdPulse Enterprise v4.1 - Master ESP32-S3 Physical Edge Node
+ * CrowdPulse Enterprise v4.1 - Ultimate Master ESP32-S3 Physical Edge Node
  * Target Microcontroller: ESP32-S3 WROOM (N16R8)
  * 
- * Verified Hardware Pinout:
+ * Hardware Peripherals & Pinout:
  *   1. DHT11 Climate Sensor:      GPIO 4
  *   2. INMP441 I2S Digital Mic:   SD=7, SCK=15, WS=16, L/R=GND, VDD=3.3V
  *   3. 4-Pin RGB Status LED:      Red=1, Green=2, Blue=3, Common=GND (220 Ohm resistors)
  *   4. 5V Buzzer Driver (2N2222): GPIO 10 (1k Ohm to Base, 1N4148 flyback diode)
  *   5. 0.96" I2C OLED (SSD1306):  SDA=8, SCL=9, VDD=3.3V, GND=GND
  *   6. Emergency SOS Push Button: GPIO 11 (Internal Pullup, other leg to GND)
+ *   7. 802.11 Wi-Fi Sniffer:      Built-in 2.4GHz Radio (Promiscuous Mode, Ch 1..13)
  * 
  * Communication:
- *   - Continuous 115200 baud JSON Telemetry streaming to CrowdPulse backend.
- *   - Real-time bidirectional actuator control (Buzzer & RGB LED directives).
+ *   - Continuous 115200 baud JSON Telemetry streaming over USB Serial.
+ *   - Real-time bidirectional closed-loop actuator control (Buzzer & RGB LED).
  * ==============================================================================
  */
 
 #include <Arduino.h>
 #include <Wire.h>
+#include <WiFi.h>
+#include <esp_wifi.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
 #include <DHT.h>
@@ -26,10 +29,10 @@
 #include <math.h>
 
 // ---------------- PIN DEFINITIONS ----------------
-#define PIN_DHT          4   // DHT11 Data
-#define PIN_LED_RED      1   // RGB Red
-#define PIN_LED_GREEN    2   // RGB Green
-#define PIN_LED_BLUE     3   // RGB Blue
+#define PIN_DHT          4   // DHT11 Data pin
+#define PIN_LED_RED      1   // RGB Red channel
+#define PIN_LED_GREEN    2   // RGB Green channel
+#define PIN_LED_BLUE     3   // RGB Blue channel
 #define PIN_BUZZER      10   // 2N2222 Transistor Base
 #define PIN_BUTTON_SOS  11   // Emergency Push Button
 
@@ -49,13 +52,35 @@
 #define I2C_SDA          8
 #define I2C_SCL          9
 
-// ---------------- OBJECTS & CONFIG ----------------
+// ---------------- SENSOR & DISPLAY OBJECTS ----------------
 DHT dht(PIN_DHT, DHT11);
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
+bool oledReady = false;
 
 const bool COMMON_ANODE = false; // false = Common Cathode
 
-// State Tracking
+// ---------------- WI-FI SNIFFER TRACKING TABLE ----------------
+struct TrackedDevice {
+  uint8_t mac[6];
+  int8_t rssi;
+  unsigned long lastSeen;
+};
+
+#define MAX_TRACKED_DEVICES 128
+TrackedDevice trackedDevices[MAX_TRACKED_DEVICES];
+int totalDevicesKnown = 0;
+
+volatile unsigned long totalPacketsCaptured = 0;
+volatile unsigned long probeRequestsCaptured = 0;
+int activeDevicesRolling = 0;
+int currentChannel = 1;
+
+unsigned long lastHopTime = 0;
+unsigned long lastPacketRateCalcTime = 0;
+unsigned long packetsInLastSec = 0;
+float currentPacketRate = 0.0;
+
+// ---------------- SYSTEM STATE VARIABLES ----------------
 String currentStatus = "NORMAL";
 String currentLedColor = "GREEN";
 bool currentBuzzer = false;
@@ -69,6 +94,60 @@ unsigned long lastTelemetryTime = 0;
 unsigned long lastDhtTime = 0;
 const unsigned long TELEMETRY_INTERVAL = 500; // Emit JSON every 500ms
 const unsigned long DHT_INTERVAL = 2000;       // Read DHT every 2s
+
+// ---------------- WI-FI PROMISCUOUS RX CALLBACK ----------------
+void wifi_promiscuous_rx_cb(void* buf, wifi_promiscuous_pkt_type_t type) {
+  totalPacketsCaptured++;
+  packetsInLastSec++;
+
+  // We filter specifically for 802.11 Management packets (Probe Requests)
+  if (type != WIFI_PKT_MGMT) return;
+
+  const wifi_promiscuous_pkt_t* pkt = (wifi_promiscuous_pkt_t*)buf;
+  const uint8_t* payload = pkt->payload;
+  int8_t rssi = pkt->rx_ctrl.rssi;
+
+  // Frame Control byte 0: 0x40 is 802.11 Subtype Probe Request
+  if (payload[0] != 0x40) return;
+
+  probeRequestsCaptured++;
+  const uint8_t* srcMac = &payload[10];
+  if (srcMac[0] & 0x01) return; // Skip multicast/broadcast
+
+  unsigned long now = millis();
+  bool found = false;
+
+  for (int i = 0; i < totalDevicesKnown; i++) {
+    if (memcmp(trackedDevices[i].mac, srcMac, 6) == 0) {
+      trackedDevices[i].rssi = rssi;
+      trackedDevices[i].lastSeen = now;
+      found = true;
+      break;
+    }
+  }
+
+  if (!found) {
+    int insertIndex = -1;
+    if (totalDevicesKnown < MAX_TRACKED_DEVICES) {
+      insertIndex = totalDevicesKnown++;
+    } else {
+      // Evict oldest stale device
+      unsigned long oldest = now;
+      for (int i = 0; i < MAX_TRACKED_DEVICES; i++) {
+        if (trackedDevices[i].lastSeen < oldest) {
+          oldest = trackedDevices[i].lastSeen;
+          insertIndex = i;
+        }
+      }
+    }
+
+    if (insertIndex >= 0) {
+      memcpy(trackedDevices[insertIndex].mac, srcMac, 6);
+      trackedDevices[insertIndex].rssi = rssi;
+      trackedDevices[insertIndex].lastSeen = now;
+    }
+  }
+}
 
 // ---------------- HARDWARE INITIALIZERS ----------------
 void setupI2S() {
@@ -125,7 +204,7 @@ void applyActuators(String color, bool buzzer) {
   digitalWrite(PIN_BUZZER, buzzer ? HIGH : LOW);
 }
 
-// ---------------- SENSING FUNCTIONS ----------------
+// ---------------- SENSING & ACOUSTIC FUNCTIONS ----------------
 float readMicrophoneDb() {
   int32_t samples[SAMPLES_NUM];
   size_t bytes_read = 0;
@@ -150,11 +229,12 @@ float readMicrophoneDb() {
   return currentDb;
 }
 
-// ---------------- OLED GRAPHICS ----------------
+// ---------------- OLED GRAPHICS DASHBOARD ----------------
 void updateOledDisplay() {
+  if (!oledReady) return;
   display.clearDisplay();
 
-  // Header Bar
+  // 1. Header Bar
   display.fillRect(0, 0, 128, 11, SSD1306_WHITE);
   display.setTextSize(1);
   display.setTextColor(SSD1306_BLACK, SSD1306_WHITE);
@@ -163,9 +243,9 @@ void updateOledDisplay() {
   display.setCursor(82, 2);
   display.print("[ONLINE]");
 
-  // Status Banner
+  // 2. Status Banner
   display.setTextColor(SSD1306_WHITE);
-  display.setCursor(2, 15);
+  display.setCursor(2, 14);
   display.print("STATUS: ");
   if (sosActive) {
     display.print("🚨 SOS ALARM!");
@@ -173,30 +253,38 @@ void updateOledDisplay() {
     display.print(currentStatus);
   }
 
-  // Noise Decibels & Visual Meter Bar
-  display.setCursor(2, 27);
+  // 3. Noise Decibels & Visual Meter Bar
+  display.setCursor(2, 25);
   display.print("NOISE : ");
   display.print(currentDb, 1);
   display.print(" dB");
 
-  // Bar meter: scale 40dB to 95dB across 120 pixels
+  // Visual Volume Bar (scale 40dB to 95dB across 120 pixels)
   int barWidth = map((int)currentDb, 40, 95, 0, 120);
   if (barWidth < 0) barWidth = 0;
   if (barWidth > 120) barWidth = 120;
-  display.drawRect(2, 37, 124, 7, SSD1306_WHITE);
-  display.fillRect(4, 39, barWidth, 3, SSD1306_WHITE);
+  display.drawRect(2, 34, 124, 6, SSD1306_WHITE);
+  display.fillRect(4, 36, barWidth, 2, SSD1306_WHITE);
 
-  // Climate (DHT11)
-  display.setCursor(2, 49);
+  // 4. Climate (DHT11)
+  display.setCursor(2, 43);
   display.print("T:");
   display.print(currentTemp, 1);
-  display.print("C  H:");
+  display.print("C H:");
   display.print(currentHum, 0);
   display.print("%");
 
-  display.setCursor(80, 49);
+  display.setCursor(80, 43);
   display.print("LED:");
   display.print(currentLedColor.substring(0, 3));
+
+  // 5. Wi-Fi Sniffer Active Phone Count
+  display.setCursor(2, 54);
+  display.print("PHONES: ");
+  display.print(activeDevicesRolling);
+  display.print(" (CH:");
+  display.print(currentChannel);
+  display.print(")");
 
   display.display();
 }
@@ -207,7 +295,6 @@ void parseSerialCommands() {
     String line = Serial.readStringUntil('\n');
     line.trim();
     if (line.startsWith("{") && line.endsWith("}")) {
-      // Fast manual parser for commands like {"buzzer": 1, "led": "RED"}
       bool buzz = currentBuzzer;
       String led = currentLedColor;
 
@@ -232,11 +319,12 @@ void parseSerialCommands() {
   }
 }
 
-// ---------------- SETUP & LOOP ----------------
+// ---------------- SETUP & INITIALIZATION ----------------
 void setup() {
   Serial.begin(115200);
   delay(1000);
 
+  // GPIO Pins
   pinMode(PIN_LED_RED, OUTPUT);
   pinMode(PIN_LED_GREEN, OUTPUT);
   pinMode(PIN_LED_BLUE, OUTPUT);
@@ -245,7 +333,7 @@ void setup() {
 
   applyActuators("GREEN", false);
 
-  // Startup Chirps
+  // Power-On Self Test: Two Startup Chirps
   digitalWrite(PIN_BUZZER, HIGH);
   delay(80);
   digitalWrite(PIN_BUZZER, LOW);
@@ -261,30 +349,62 @@ void setup() {
   // Initialize OLED Display
   Wire.begin(I2C_SDA, I2C_SCL);
   if (display.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS)) {
+    oledReady = true;
     display.clearDisplay();
     display.setTextSize(1);
     display.setTextColor(SSD1306_WHITE);
-    display.setCursor(14, 20);
+    display.setCursor(14, 16);
     display.println("CROWDPULSE AI");
-    display.setCursor(10, 36);
-    display.println("Master Node Boot...");
+    display.setCursor(10, 32);
+    display.println("Master Edge Node");
+    display.setCursor(14, 48);
+    display.println("All Sensors Booted");
     display.display();
-    delay(1500);
+    delay(1200);
   }
 
-  Serial.println("\n[CrowdPulse Node] Physical Edge Sensing Node Ready!");
+  // Initialize 802.11 Wi-Fi Promiscuous Sniffer
+  WiFi.mode(WIFI_STA);
+  WiFi.disconnect();
+  delay(100);
+
+  wifi_promiscuous_filter_t filt = {
+    .filter_mask = WIFI_PROMIS_FILTER_MASK_MGMT
+  };
+  esp_wifi_set_promiscuous_filter(&filt);
+  esp_wifi_set_promiscuous_rx_cb(&wifi_promiscuous_rx_cb);
+  esp_wifi_set_promiscuous(true);
+  esp_wifi_set_channel(currentChannel, WIFI_SECOND_CHAN_NONE);
+
+  Serial.println("\n[CrowdPulse Node] Physical Edge Sensing Node Ready! Streaming Telemetry...");
 }
 
+// ---------------- MAIN LOOP ----------------
 void loop() {
   unsigned long now = millis();
 
-  // 1. Process incoming commands from CrowdPulse backend
+  // 1. Process incoming actuator commands from CrowdPulse backend
   parseSerialCommands();
 
-  // 2. Sample INMP441 Microphone continuously
+  // 2. Sample INMP441 Microphone continuously via I2S DMA
   currentDb = readMicrophoneDb();
 
-  // 3. Sample DHT11 every 2 seconds
+  // 3. Wi-Fi Channel Hopping (every 200ms across channels 1..13)
+  if (now - lastHopTime >= 200) {
+    lastHopTime = now;
+    currentChannel++;
+    if (currentChannel > 13) currentChannel = 1;
+    esp_wifi_set_channel(currentChannel, WIFI_SECOND_CHAN_NONE);
+  }
+
+  // 4. Wi-Fi Packet Rate Computation (every 1 second)
+  if (now - lastPacketRateCalcTime >= 1000) {
+    lastPacketRateCalcTime = now;
+    currentPacketRate = (float)packetsInLastSec;
+    packetsInLastSec = 0;
+  }
+
+  // 5. Sample DHT11 Climate Sensor every 2 seconds
   if (now - lastDhtTime >= DHT_INTERVAL) {
     lastDhtTime = now;
     float t = dht.readTemperature();
@@ -293,7 +413,7 @@ void loop() {
     if (!isnan(h)) currentHum = h;
   }
 
-  // 4. Check SOS Push Button (Active LOW)
+  // 6. Check Emergency SOS Push Button (Active LOW)
   if (digitalRead(PIN_BUTTON_SOS) == LOW) {
     sosActive = true;
     applyActuators("RED", true);
@@ -302,16 +422,25 @@ void loop() {
     applyActuators("GREEN", false);
   }
 
-  // 5. Automatic local safety threshold
+  // 7. Automatic Local Safety Threshold (Caution if >85 dB)
   if (!sosActive && currentDb > 85.0) {
-    applyActuators("YELLOW", false); // Auto caution on high decibels
+    applyActuators("YELLOW", false);
   }
 
-  // 6. Transmit Telemetry JSON to CrowdPulse backend
+  // 8. Transmit Telemetry JSON to CrowdPulse Backend (every 500ms)
   if (now - lastTelemetryTime >= TELEMETRY_INTERVAL) {
     lastTelemetryTime = now;
 
-    // Emits standard CrowdPulse JSON Packet
+    // Prune active devices table (30-second rolling window)
+    int activeCount = 0;
+    for (int i = 0; i < totalDevicesKnown; i++) {
+      if (now - trackedDevices[i].lastSeen <= 30000) {
+        activeCount++;
+      }
+    }
+    activeDevicesRolling = activeCount;
+
+    // Emits Unified CrowdPulse JSON Packet
     Serial.print("{\"temperature\":");
     Serial.print(currentTemp, 1);
     Serial.print(",\"humidity\":");
@@ -320,11 +449,19 @@ void loop() {
     Serial.print(currentDb, 1);
     Serial.print(",\"motion\":");
     Serial.print(sosActive ? "true" : "false");
+    Serial.print(",\"sos\":");
+    Serial.print(sosActive ? "true" : "false");
+    Serial.print(",\"active_devices\":");
+    Serial.print(activeDevicesRolling);
+    Serial.print(",\"probe_rate\":");
+    Serial.print(currentPacketRate, 1);
+    Serial.print(",\"channel\":");
+    Serial.print(currentChannel);
     Serial.print(",\"device_id\":\"ESP32-S3-CROWDPULSE\"}\n");
 
-    // Refresh OLED Display
+    // Refresh 0.96" OLED Display
     updateOledDisplay();
   }
 
-  delay(20);
+  delay(15);
 }

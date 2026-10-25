@@ -26,6 +26,7 @@ wifi_zones: dict[str, Any] = defaultdict(dict)
 
 processor: VideoProcessor = VideoProcessor()
 processor.wifi_zones = wifi_zones
+esp32_manager.wifi_zones = wifi_zones
 start_time: float = time.time()
 
 

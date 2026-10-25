@@ -214,17 +214,40 @@ class SerialHardwareManager:
             hum = float(data.get("humidity", data.get("hum", data.get("rh", 50.0))))
             # Noise resolution
             noise = float(data.get("noise_db", data.get("noise", data.get("sound", data.get("db", 55.0)))))
-            # Motion resolution
+            # Motion & Emergency SOS resolution
             motion_raw = data.get("motion", data.get("pir", data.get("pir_motion", False)))
             motion = bool(motion_raw) if not isinstance(motion_raw, str) else (motion_raw.lower() in ("true", "1", "yes", "active"))
+            sos_raw = data.get("sos", data.get("emergency", data.get("panic", None)))
+            sos = bool(sos_raw) if not isinstance(sos_raw, str) else (sos_raw.lower() in ("true", "1", "yes", "active"))
+            if not sos and motion and ("ESP32" in str(data.get("device_id", ""))):
+                sos = motion
+
             # Device ID
             dev_id = str(data.get("device_id", data.get("device", data.get("id", "ESP32-USB"))))
+
+            # Wi-Fi Sniffing RF resolution
+            active_devs = None
+            if "active_devices" in data or "devices" in data or "phones" in data:
+                try:
+                    active_devs = int(data.get("active_devices", data.get("devices", data.get("phones", 0))))
+                except (ValueError, TypeError):
+                    active_devs = None
+
+            probe_rate = None
+            if "probe_rate" in data or "rate" in data:
+                try:
+                    probe_rate = float(data.get("probe_rate", data.get("rate", 0.0)))
+                except (ValueError, TypeError):
+                    probe_rate = None
 
             return ESP32TelemetryPacket(
                 temperature=temp,
                 humidity=hum,
                 noise_db=noise,
                 motion=motion,
+                sos=sos,
+                active_devices=active_devs,
+                probe_rate=probe_rate,
                 device_id=dev_id,
                 timestamp=time.time()
             )

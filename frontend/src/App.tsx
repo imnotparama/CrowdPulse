@@ -70,18 +70,22 @@ function App() {
     flow_direction: { angle: 45, label: 'EAST' },
     sectors: [] as { name: string; count: number; status: string }[],
     wifi_probe_count: 9,
+    active_devices: 0,
+    probe_rate: 0.0,
     wifi_zones: {} as Record<string, WifiZone>,
     // Hardware layer
     temperature: 24.5,
     humidity: 52.0,
     noise_db: 58.0,
     motion_detected: false,
+    sos_active: false,
     sensor_health: 'OPTIMAL' as 'OPTIMAL' | 'DEGRADED' | 'OFFLINE',
     sensor_timestamp: Date.now(),
     buzzer_state: false,
     led_state: 'GREEN' as 'GREEN' | 'YELLOW' | 'RED',
     hardware_status: 'SIMULATED' as 'CONNECTED' | 'TIMEOUT' | 'SIMULATED',
     connection_type: 'SIMULATED' as 'USB_SERIAL' | 'WIFI' | 'SIMULATED' | 'DISCONNECTED',
+    latency_ms: 14.0,
     environment_risk: 18.0,
     fusion_confidence: 0.94,
     sensor_score: 22.0,
@@ -321,18 +325,22 @@ function App() {
           stampede_risk: data.stampede_risk ?? prev.stampede_risk,
           flow_direction: data.flow_direction || prev.flow_direction,
           sectors: data.sectors || prev.sectors,
-          wifi_probe_count: data.wifi_probe_count ?? prev.wifi_probe_count,
+          wifi_probe_count: data.wifi_probe_count ?? data.active_devices ?? prev.wifi_probe_count,
+          active_devices: data.active_devices ?? prev.active_devices,
+          probe_rate: data.probe_rate ?? prev.probe_rate,
           wifi_zones: data.wifi_zones || prev.wifi_zones,
           temperature: data.temperature ?? prev.temperature,
           humidity: data.humidity ?? prev.humidity,
           noise_db: data.noise_db ?? prev.noise_db,
           motion_detected: data.motion_detected ?? prev.motion_detected,
+          sos_active: data.sos_active ?? prev.sos_active,
           sensor_health: data.sensor_health ?? prev.sensor_health,
           sensor_timestamp: data.sensor_timestamp ?? prev.sensor_timestamp,
           buzzer_state: data.buzzer_state ?? prev.buzzer_state,
           led_state: data.led_state ?? prev.led_state,
           hardware_status: data.hardware_status ?? prev.hardware_status,
           connection_type: data.connection_type ?? prev.connection_type,
+          latency_ms: data.latency_ms ?? prev.latency_ms,
           environment_risk: data.environment_risk ?? prev.environment_risk,
           fusion_confidence: data.fusion_confidence ?? prev.fusion_confidence,
           sensor_score: data.sensor_score ?? prev.sensor_score,
@@ -343,6 +351,12 @@ function App() {
           fusion_narrative: data.fusion_narrative ?? prev.fusion_narrative,
         };
       });
+
+      if (data.sos_active && !sosMode) {
+        setSosMode(true);
+        playSound('alert');
+        speakText('Emergency SOS panic button triggered on edge node');
+      }
 
       const zones: Record<string, WifiZone> = data.wifi_zones || {};
       const activeCount = Object.values(zones).filter((z) => z.status === 'ACTIVE').length;
@@ -606,7 +620,7 @@ function App() {
           <HardwareCard
             hardwareStatus={stats.hardware_status}
             connectionType={stats.connection_type}
-            latencyMs={24}
+            latencyMs={stats.latency_ms || 18}
             fps={30}
             onOpenSelfTest={runHardwareSelfTest}
             onOpenHardwareSetup={() => setSelfTestOpen(true)}

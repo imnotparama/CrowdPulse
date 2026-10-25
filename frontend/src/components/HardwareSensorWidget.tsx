@@ -35,13 +35,20 @@ export const EnvironmentCard: React.FC<{
   humidity = 52.0,
   noiseDb = 58.0,
 }) => {
+  const envStatus =
+    noiseDb > 85
+      ? { label: 'Acoustic Surge', color: 'text-amber-400 bg-amber-500/10 border-amber-500/20' }
+      : temperature > 34
+      ? { label: 'Thermal Warning', color: 'text-amber-400 bg-amber-500/10 border-amber-500/20' }
+      : { label: 'Optimal', color: 'text-[#1ED760] bg-[#1ED760]/10 border-[#1ED760]/20' };
+
   return (
     <div className="card-apple p-5 flex flex-col justify-between h-full animate-apple-in delay-300">
       {/* Header */}
       <div className="flex items-center justify-between pb-3 border-b border-white/[0.05]">
         <span className="text-sm font-medium text-white">Environment</span>
-        <span className="text-xs text-[#1ED760] font-medium bg-[#1ED760]/10 px-2 py-0.5 rounded-full border border-[#1ED760]/20">
-          Optimal
+        <span className={`text-xs font-medium px-2 py-0.5 rounded-full border ${envStatus.color}`}>
+          {envStatus.label}
         </span>
       </div>
 
@@ -195,10 +202,10 @@ export const HardwareCard: React.FC<{
 
         <div className="flex items-center justify-between py-1 border-t border-white/[0.04]">
           <span className="text-[#B9B9C5] flex items-center gap-2">
-            <Wifi size={13} strokeWidth={1.75} className="text-[#B9B9C5]" />
-            Wi-Fi Connection
+            <Wifi size={13} strokeWidth={1.75} className="text-[#00B5FF]" />
+            Wi-Fi Sniffer RF
           </span>
-          <span className="text-[#1ED760] font-medium">Stable</span>
+          <span className="text-[#1ED760] font-medium">Promiscuous Ch 1-13</span>
         </div>
       </div>
 

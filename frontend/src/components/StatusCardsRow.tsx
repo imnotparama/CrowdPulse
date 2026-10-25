@@ -66,6 +66,7 @@ export const StatusCardsRow: React.FC<StatusCardsRowProps> = ({
   density,
   status,
   wifiProbeCount,
+  activeWifiZones = 0,
   avgVelocity,
 }) => {
   const getDensityStatus = (val: number) => {
@@ -116,7 +117,7 @@ export const StatusCardsRow: React.FC<StatusCardsRowProps> = ({
       icon: Smartphone,
       metric: 'Active Devices',
       renderValue: <AnimatedNumber value={wifiProbeCount} decimals={0} />,
-      status: 'Stable',
+      status: activeWifiZones > 0 ? `${activeWifiZones} Active Zone${activeWifiZones > 1 ? 's' : ''}` : 'RF Sniffer Active',
       statusColor: 'text-[#1ED760]',
       delayClass: 'delay-400',
     },

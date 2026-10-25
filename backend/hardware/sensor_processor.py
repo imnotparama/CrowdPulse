@@ -108,6 +108,9 @@ class SensorProcessor:
             humidity=round(packet.humidity, 1),
             noise_db=round(packet.noise_db, 1),
             motion_detected=packet.motion,
+            sos_active=bool(packet.sos or False),
+            active_devices=int(packet.active_devices or 0),
+            probe_rate=round(float(packet.probe_rate or 0.0), 1),
             sensor_health=health,
             sensor_timestamp=pkt_time,
             buzzer_state=False,  # Updated by fusion engine

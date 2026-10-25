@@ -36,6 +36,7 @@ class ESP32Manager:
 
         # Register callback for USB Serial hardware listener
         serial_manager.on_packet_callback = self.ingest_packet
+        self.wifi_zones: Optional[dict[str, Any]] = None
 
     def ingest_packet(self, packet: ESP32TelemetryPacket, source: str = "WIFI") -> dict[str, str]:
         """Receives a telemetry packet from physical ESP32-S3 / Arduino over Wi-Fi or USB Serial."""
@@ -44,6 +45,14 @@ class ESP32Manager:
             self.last_packet_time = time.time()
             self.has_physical_device = True
             self.connection_source = source
+
+            # Real-time Wi-Fi Sniffing RF Integration
+            if self.wifi_zones is not None and packet.active_devices is not None:
+                self.wifi_zones["Zone 1 - Main Concourse (ESP32 RF Sniffer)"] = {
+                    "count": int(packet.active_devices),
+                    "rssi": -62.0,
+                    "timestamp": time.time()
+                }
 
             # Return actuator feedback to ESP32
             return {
@@ -199,12 +208,17 @@ class ESP32Manager:
                 # Realistic crowd acoustic baseline with occasional bursts
                 sim_noise = 62.0 + 10.0 * math.sin(now / 20.0) + random.uniform(-2.0, 3.0)
                 sim_motion = (math.sin(now / 5.0) > -0.2) and (random.random() > 0.25)
+                sim_active_devices = int(max(3, 8 + 4 * math.sin(now / 35.0)))
+                sim_probe_rate = round(max(0.5, 1.8 + 0.6 * math.cos(now / 20.0)), 1)
 
                 sim_packet = ESP32TelemetryPacket(
                     temperature=round(sim_temp, 1),
                     humidity=round(sim_humidity, 1),
                     noise_db=round(sim_noise, 1),
                     motion=sim_motion,
+                    sos=False,
+                    active_devices=sim_active_devices,
+                    probe_rate=sim_probe_rate,
                     device_id="ESP32-S3-SIM",
                     timestamp=now
                 )
