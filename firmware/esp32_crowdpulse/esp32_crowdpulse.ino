@@ -92,6 +92,7 @@ float currentDb = 42.0;
 
 unsigned long lastTelemetryTime = 0;
 unsigned long lastDhtTime = 0;
+unsigned long lastSerialCmdTime = 0;
 const unsigned long TELEMETRY_INTERVAL = 500; // Emit JSON every 500ms
 const unsigned long DHT_INTERVAL = 2000;       // Read DHT every 2s
 
@@ -215,31 +216,36 @@ float readMicrophoneDb() {
     if (count <= 0) return currentDb;
 
     // 1. Calculate DC bias offset across buffer
-    int64_t sum = 0;
+    double sum = 0.0;
     for (int i = 0; i < count; i++) {
-      sum += (samples[i] >> 8);
+      int32_t s = samples[i] >> 8;
+      sum += (double)s;
     }
-    int32_t mean = (int32_t)(sum / count);
+    double mean = sum / (double)count;
 
-    // 2. Subtract DC bias to isolate true AC acoustic wave vibration
-    int64_t sum_squares = 0;
+    // 2. Subtract DC bias and compute normalized AC energy
+    double sum_sq = 0.0;
     for (int i = 0; i < count; i++) {
-      int32_t ac = (samples[i] >> 8) - mean;
-      sum_squares += (int64_t)ac * ac;
+      int32_t s = samples[i] >> 8;
+      double ac = ((double)s - mean) / 8388608.0; // Normalized against 24-bit full scale
+      sum_sq += ac * ac;
     }
 
-    double rms = sqrt((double)sum_squares / (double)count);
+    double rms_norm = sqrt(sum_sq / (double)count);
 
-    // If microphone is disconnected or silent
-    if (rms < 5.0) {
-      return 42.0;
+    // If microphone is silent or disconnected
+    if (rms_norm < 0.00008) {
+      return (float)(0.75 * currentDb + 0.25 * 42.0);
     }
 
-    double db = 20.0 * log10(rms / 25.0) + 40.0;
-    if (db < 38.0) db = 38.0;
-    if (db > 105.0) db = 105.0;
+    // Convert normalized RMS to dBFS, then map to Sound Pressure Level (dB SPL)
+    double dbfs = 20.0 * log10(rms_norm);
+    double spl = dbfs + 106.0;
 
-    return (float)(0.70 * currentDb + 0.30 * db);
+    if (spl < 38.0) spl = 38.0;
+    if (spl > 105.0) spl = 105.0;
+
+    return (float)(0.60 * currentDb + 0.40 * spl);
   }
   return currentDb;
 }
@@ -329,6 +335,7 @@ void parseSerialCommands() {
         led = "BLUE";
       }
 
+      lastSerialCmdTime = millis();
       applyActuators(led, buzz);
     }
   }
@@ -437,11 +444,18 @@ void loop() {
     applyActuators("GREEN", false);
   }
 
-  // 7. Automatic Local Safety Threshold (Caution if >85 dB, recover to Green when <75 dB)
-  if (!sosActive && currentDb > 85.0) {
-    applyActuators("YELLOW", false);
-  } else if (!sosActive && currentLedColor == "YELLOW" && currentDb < 75.0) {
-    applyActuators("GREEN", false);
+  // 7. Automatic Local Safety Thresholds (Autonomous edge control when no serial override)
+  if (!sosActive && (now - lastSerialCmdTime > 3000)) {
+    if (currentDb >= 90.0) {
+      // Acoustic panic / screaming / loud surge: RED LED + BUZZER ALARM!
+      applyActuators("RED", true);
+    } else if (currentDb >= 75.0) {
+      // Elevated crowd noise: YELLOW Caution, Buzzer OFF
+      applyActuators("YELLOW", false);
+    } else {
+      // Normal safe ambient (<75 dB): GREEN, Buzzer OFF
+      applyActuators("GREEN", false);
+    }
   }
 
   // 8. Transmit Telemetry JSON to CrowdPulse Backend (every 500ms)
