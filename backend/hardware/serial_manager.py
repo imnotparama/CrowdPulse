@@ -95,13 +95,47 @@ class SerialHardwareManager:
                     "baudrate": baudrate
                 }
             except Exception as e:
-                self.last_error = str(e)
-                logger.error(f"[CrowdPulse Serial] ❌ Failed to open {port}: {e}")
+                err_str = str(e)
+                if "PermissionError" in err_str or "Access is denied" in err_str:
+                    friendly_err = f"COM port '{port}' is locked by another program (usually Arduino IDE Serial Monitor or Plotter). Please close Serial Monitor in Arduino IDE, then click Connect."
+                elif "FileNotFoundError" in err_str or "could not open port" in err_str:
+                    friendly_err = f"COM port '{port}' disconnected. Check USB cable connection."
+                else:
+                    friendly_err = err_str
+                self.last_error = friendly_err
+                logger.error(f"[CrowdPulse Serial] ❌ Failed to open {port}: {friendly_err}")
                 return {
                     "status": "error",
                     "port": port,
-                    "message": str(e)
+                    "message": friendly_err
                 }
+
+    def auto_connect_if_available(self) -> Optional[str]:
+        """Automatically connects to the first valid microcontroller COM port if not already connected."""
+        if self.is_connected:
+            return self.active_port
+
+        ports = self.list_ports()
+        if not ports:
+            return None
+
+        # Prioritize ESP32 / CH340 / CH343 / CP210x / FTDI USB serial chips
+        target_port = None
+        for p in ports:
+            desc = (p.get("description", "") + " " + p.get("hardware_id", "") + " " + p.get("manufacturer", "")).lower()
+            if any(k in desc for k in ["ch34", "cp210", "usb-serial", "ftdi", "uart", "esp32", "arduino"]):
+                target_port = p["port"]
+                break
+
+        if not target_port and len(ports) == 1:
+            target_port = ports[0]["port"]
+
+        if target_port:
+            res = self.connect(target_port, 115200)
+            if res.get("status") == "connected":
+                logger.info(f"[CrowdPulse Serial] ⚡ Auto-connected to hardware on {target_port}")
+                return target_port
+        return None
 
     def disconnect(self) -> dict[str, Any]:
         """Gracefully disconnects serial port."""

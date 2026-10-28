@@ -38,6 +38,21 @@ class ESP32Manager:
         serial_manager.on_packet_callback = self.ingest_packet
         self.wifi_zones: Optional[dict[str, Any]] = None
 
+        # Start background watchdog to auto-connect physical microcontroller on USB plug-in
+        self._watchdog_thread = threading.Thread(target=self._serial_watchdog_loop, daemon=True)
+        self._watchdog_thread.start()
+
+    def _serial_watchdog_loop(self) -> None:
+        """Background thread ensuring zero-config auto-connect to USB microcontroller upon plug-in."""
+        time.sleep(1.0)
+        while True:
+            try:
+                if not serial_manager.is_connected:
+                    serial_manager.auto_connect_if_available()
+            except Exception as e:
+                logger.debug(f"[ESP32Manager] Watchdog error: {e}")
+            time.sleep(3.0)
+
     def ingest_packet(self, packet: ESP32TelemetryPacket, source: str = "WIFI") -> dict[str, str]:
         """Receives a telemetry packet from physical ESP32-S3 / Arduino over Wi-Fi or USB Serial."""
         with self.lock:

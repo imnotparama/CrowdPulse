@@ -19,7 +19,6 @@ import {
   Plug,
   Terminal,
   AlertTriangle,
-  Sparkles,
 } from 'lucide-react';
 import { getApiBase } from '../config';
 
@@ -113,48 +112,31 @@ export const HardwareSelfTestModal: React.FC<HardwareSelfTestModalProps> = ({
   const [isConnectingSerial, setIsConnectingSerial] = useState<boolean>(false);
   const [networkInfo, setNetworkInfo] = useState<{ host_ip: string; telemetry_url: string } | null>(null);
   const [copiedUrl, setCopiedUrl] = useState<boolean>(false);
-  const [isCalibratingEnv, setIsCalibratingEnv] = useState<boolean>(false);
-  const [calibrationMsg, setCalibrationMsg] = useState<string | null>(null);
-
-  const handleCalibrateEnv = async () => {
-    setIsCalibratingEnv(true);
-    setCalibrationMsg('Sampling ambient environment for 3s...');
-    try {
-      const res = await fetch(`${getApiBase()}/api/hardware/calibrate`, {
-        method: 'POST',
-      });
-      const data = await res.json();
-      setCalibrationMsg(
-        `Calibrated to room! Baseline: ${data.current_baseline_db || 75} dB`
-      );
-      setTimeout(() => setCalibrationMsg(null), 5000);
-    } catch {
-      setCalibrationMsg('Calibration command sent to hardware!');
-      setTimeout(() => setCalibrationMsg(null), 5000);
-    } finally {
-      setIsCalibratingEnv(false);
-    }
-  };
+  const [backendOffline, setBackendOffline] = useState<boolean>(false);
 
   // Fetch Serial Ports & Network Info when modal opens
   const refreshHardwareData = async () => {
     try {
       const api = getApiBase();
       const [portsRes, statusRes, netRes] = await Promise.all([
-        fetch(`${api}/api/hardware/serial/ports`),
-        fetch(`${api}/api/hardware/serial/status`),
-        fetch(`${api}/api/hardware/network/info`),
+        fetch(`${api}/api/hardware/serial/ports`).catch(() => null),
+        fetch(`${api}/api/hardware/serial/status`).catch(() => null),
+        fetch(`${api}/api/hardware/network/info`).catch(() => null),
       ]);
 
-      if (portsRes.ok) {
-        const portsData: SerialPortInfo[] = await portsRes.json();
-        setPorts(portsData);
-        if (portsData.length > 0 && !selectedPort) {
-          setSelectedPort(portsData[0].port);
-        }
+      if (!portsRes || !portsRes.ok) {
+        setBackendOffline(true);
+        return;
+      }
+      setBackendOffline(false);
+
+      const portsData: SerialPortInfo[] = await portsRes.json();
+      setPorts(portsData);
+      if (portsData.length > 0 && !selectedPort) {
+        setSelectedPort(portsData[0].port);
       }
 
-      if (statusRes.ok) {
+      if (statusRes && statusRes.ok) {
         const statusData = await statusRes.json();
         setSerialConnected(statusData.connected || false);
         setSerialActivePort(statusData.port || null);
@@ -163,12 +145,13 @@ export const HardwareSelfTestModal: React.FC<HardwareSelfTestModalProps> = ({
         setSerialError(statusData.last_error || null);
       }
 
-      if (netRes.ok) {
+      if (netRes && netRes.ok) {
         const netData = await netRes.json();
         setNetworkInfo(netData);
       }
     } catch (err) {
       console.warn('Failed to refresh hardware data', err);
+      setBackendOffline(true);
     }
   };
 
@@ -416,15 +399,38 @@ export const HardwareSelfTestModal: React.FC<HardwareSelfTestModalProps> = ({
                                 </option>
                               ))}
                             </select>
+                          ) : backendOffline ? (
+                            <div className="p-2.5 rounded-lg bg-rose-950/30 border border-rose-500/30 text-[11px] text-rose-300 flex flex-col gap-1.5">
+                              <div className="flex items-center justify-between">
+                                <span className="font-semibold flex items-center gap-1.5">
+                                  <AlertTriangle size={12} className="text-rose-400" />
+                                  Backend Server Offline
+                                </span>
+                                <button
+                                  onClick={refreshHardwareData}
+                                  className="text-[10px] font-mono text-cyan-400 hover:underline flex items-center gap-1"
+                                >
+                                  <RefreshCw size={10} /> Retry
+                                </button>
+                              </div>
+                              <span className="text-[10px] text-zinc-400 font-mono">
+                                Run in terminal: <span className="text-cyan-300">py -3.13 -m uvicorn main:app --port 8000</span>
+                              </span>
+                            </div>
                           ) : (
-                            <div className="p-2.5 rounded-lg bg-zinc-900/60 border border-white/[0.05] text-[11px] text-zinc-400 flex items-center justify-between">
-                              <span>No COM ports currently detected</span>
-                              <button
-                                onClick={refreshHardwareData}
-                                className="text-[10px] font-mono text-cyan-400 hover:underline flex items-center gap-1"
-                              >
-                                <RefreshCw size={10} /> Scan
-                              </button>
+                            <div className="p-2.5 rounded-lg bg-zinc-900/60 border border-white/[0.05] text-[11px] text-zinc-400 flex flex-col gap-1">
+                              <div className="flex items-center justify-between">
+                                <span>No COM ports currently detected</span>
+                                <button
+                                  onClick={refreshHardwareData}
+                                  className="text-[10px] font-mono text-cyan-400 hover:underline flex items-center gap-1"
+                                >
+                                  <RefreshCw size={10} /> Scan
+                                </button>
+                              </div>
+                              <span className="text-[10px] text-zinc-500 font-mono">
+                                • Check USB cable connection • Close Arduino IDE Serial Monitor
+                              </span>
                             </div>
                           )}
 
@@ -446,9 +452,12 @@ export const HardwareSelfTestModal: React.FC<HardwareSelfTestModalProps> = ({
                           </div>
 
                           {serialError && (
-                            <div className="p-2 rounded bg-rose-500/10 border border-rose-500/30 text-rose-300 text-[11px] font-mono flex items-center gap-1.5">
-                              <AlertTriangle size={12} />
-                              <span>{serialError}</span>
+                            <div className="p-2.5 rounded bg-rose-500/10 border border-rose-500/30 text-rose-300 text-[11px] font-mono flex flex-col gap-1">
+                              <div className="flex items-center gap-1.5 font-semibold text-rose-400">
+                                <AlertTriangle size={12} className="flex-shrink-0" />
+                                <span>Port Connection Notice</span>
+                              </div>
+                              <p className="text-[10px] text-zinc-300 leading-normal pl-4">{serialError}</p>
                             </div>
                           )}
                         </div>
