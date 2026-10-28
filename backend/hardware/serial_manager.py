@@ -141,6 +141,25 @@ class SerialHardwareManager:
                 logger.warning(f"[CrowdPulse Serial] Write failed: {e}")
                 return False
 
+    def send_calibration(self) -> dict[str, Any]:
+        """Sends ambient environmental calibration command to connected ESP32-S3 / Arduino."""
+        with self.lock:
+            if not self.is_connected or self.serial_conn is None:
+                return {"status": "offline", "message": "Serial port not connected"}
+
+            cmd = '{"cmd":"calibrate"}\n'
+            try:
+                self.serial_conn.write(cmd.encode("utf-8"))
+                self.serial_conn.flush()
+                logger.info("[CrowdPulse Serial] 🎯 Dispatched calibration command to hardware")
+                return {
+                    "status": "dispatched",
+                    "message": "Calibration command sent. Node is profiling ambient room noise for 3 seconds."
+                }
+            except Exception as e:
+                logger.warning(f"[CrowdPulse Serial] Write failed: {e}")
+                return {"status": "error", "message": str(e)}
+
     def get_status(self) -> dict[str, Any]:
         """Returns live status of the serial hardware interface."""
         with self.lock:

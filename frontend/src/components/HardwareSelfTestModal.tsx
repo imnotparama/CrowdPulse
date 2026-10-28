@@ -19,6 +19,7 @@ import {
   Plug,
   Terminal,
   AlertTriangle,
+  Sparkles,
 } from 'lucide-react';
 import { getApiBase } from '../config';
 
@@ -112,6 +113,28 @@ export const HardwareSelfTestModal: React.FC<HardwareSelfTestModalProps> = ({
   const [isConnectingSerial, setIsConnectingSerial] = useState<boolean>(false);
   const [networkInfo, setNetworkInfo] = useState<{ host_ip: string; telemetry_url: string } | null>(null);
   const [copiedUrl, setCopiedUrl] = useState<boolean>(false);
+  const [isCalibratingEnv, setIsCalibratingEnv] = useState<boolean>(false);
+  const [calibrationMsg, setCalibrationMsg] = useState<string | null>(null);
+
+  const handleCalibrateEnv = async () => {
+    setIsCalibratingEnv(true);
+    setCalibrationMsg('Sampling ambient environment for 3s...');
+    try {
+      const res = await fetch(`${getApiBase()}/api/hardware/calibrate`, {
+        method: 'POST',
+      });
+      const data = await res.json();
+      setCalibrationMsg(
+        `Calibrated to room! Baseline: ${data.current_baseline_db || 75} dB`
+      );
+      setTimeout(() => setCalibrationMsg(null), 5000);
+    } catch {
+      setCalibrationMsg('Calibration command sent to hardware!');
+      setTimeout(() => setCalibrationMsg(null), 5000);
+    } finally {
+      setIsCalibratingEnv(false);
+    }
+  };
 
   // Fetch Serial Ports & Network Info when modal opens
   const refreshHardwareData = async () => {

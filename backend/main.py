@@ -242,6 +242,9 @@ async def websocket_endpoint(websocket: WebSocket) -> None:
                 elif action == "hardware_selftest":
                     report = esp32_manager.run_self_test()
                     await websocket.send_json({"type": "selftest_result", "report": report})
+                elif action in ("calibrate_hardware", "calibrate_environment", "calibrate"):
+                    res = esp32_manager.calibrate_environment()
+                    await websocket.send_json({"type": "calibration_result", "status": "ok", "report": res})
             except WebSocketDisconnect:
                 break
             except Exception:

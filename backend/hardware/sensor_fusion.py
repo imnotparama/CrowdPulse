@@ -157,15 +157,26 @@ class SensorFusionEngine:
             motion_detected=hardware_state.motion_detected
         )
 
-        if hardware_state.sos_active or hardware_state.noise_db >= 78.0:
+        # Dynamic environmental thresholds relative to calibrated room baseline
+        # Normal conversation: 55-72 dB -> SAFE
+        # Loud chatter / shouting: >= 76 dB (+14 dB) -> WARNING
+        # Genuine Panic Screams / Acoustic Surge: >= 85 dB (+24 dB) -> CRITICAL
+        acoustic_surge = getattr(hardware_state, 'acoustic_surge_db', 0.0)
+        surge_threshold = getattr(hardware_state, 'surge_threshold_db', max(85.0, hardware_state.ambient_baseline_db + 24.0))
+        caution_threshold = getattr(hardware_state, 'caution_threshold_db', max(76.0, hardware_state.ambient_baseline_db + 14.0))
+
+        is_critical_noise = (acoustic_surge >= 24.0 or hardware_state.noise_db >= surge_threshold or hardware_state.noise_db >= 96.0)
+        is_warning_noise = (acoustic_surge >= 14.0 or hardware_state.noise_db >= caution_threshold or hardware_state.noise_db >= 88.0)
+
+        if hardware_state.sos_active or is_critical_noise:
             threat_level = "CRITICAL"
             combined_score = 100.0 if hardware_state.sos_active else max(combined_score, 85.0)
             is_confirmed_alert = True
         elif combined_score > 70.0 and is_confirmed_alert:
             threat_level = "CRITICAL"
-        elif combined_score > 45.0 or level == "WARNING" or hardware_state.noise_db >= 68.0:
+        elif combined_score > 45.0 or level == "WARNING" or is_warning_noise:
             threat_level = "WARNING"
-        elif combined_score > 25.0 or level == "ELEVATED" or hardware_state.noise_db >= 62.0:
+        elif combined_score > 25.0 or level == "ELEVATED":
             threat_level = "ELEVATED"
         else:
             threat_level = "SAFE"

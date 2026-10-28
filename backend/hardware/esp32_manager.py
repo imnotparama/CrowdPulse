@@ -98,6 +98,22 @@ class ESP32Manager:
         serial_manager.write_actuator_state(final_buzzer, final_led)
         return {"status": "reset", "mode": "AUTO"}
 
+    def calibrate_environment(self, baseline_db: Optional[float] = None) -> dict[str, Any]:
+        """Triggers ambient room noise calibration on the physical IoT hardware node and backend processor."""
+        with self.lock:
+            if baseline_db is not None:
+                self.processor.ambient_baseline_db = baseline_db
+            elif self.last_packet and self.last_packet.noise_db:
+                self.processor.ambient_baseline_db = self.last_packet.noise_db
+
+        serial_res = serial_manager.send_calibration()
+        return {
+            "status": "calibrating",
+            "message": "Ambient environmental calibration initiated. Calibrating to room background.",
+            "current_baseline_db": self.processor.ambient_baseline_db,
+            "serial": serial_res
+        }
+
     def run_self_test(self) -> dict[str, Any]:
         """
         Executes a high-precision diagnostic benchmark across all physical edge channels:

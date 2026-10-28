@@ -19,13 +19,15 @@ def create_report():
         section.page_width = Inches(8.27)   # A4
         section.page_height = Inches(11.69) # A4
 
-    # Configure Section 1 (Front Matter: Pages 1 to 4)
-    s1 = doc.sections[0]
-    set_margins(s1, top=0.9, bottom=0.9, left=1.25, right=1.0)
-    s1.different_first_page_header_footer = False
-    s1.footer.is_linked_to_previous = False
-    for p in s1.footer.paragraphs:
+    # Configure Section 0 (Title Page: Page 1, Vertically Centered)
+    s0 = doc.sections[0]
+    set_margins(s0, top=0.9, bottom=0.9, left=1.25, right=1.0)
+    s0.different_first_page_header_footer = False
+    s0.footer.is_linked_to_previous = False
+    for p in s0.footer.paragraphs:
         p.text = ""
+    vAlign0 = parse_xml('<w:vAlign ' + nsdecls('w') + ' w:val="center"/>')
+    s0._sectPr.append(vAlign0)
 
     def format_run(run, font_name="Times New Roman", size_pt=13, bold=False, italic=False, color_rgb=(0, 0, 0)):
         run.font.name = font_name
@@ -133,108 +135,123 @@ def create_report():
         tblPr.append(borders)
 
     # ===========================================================================
-    # PAGE 1: TITLE PAGE (Calibrated to fit precisely 1 page)
+    # PAGE 1: TITLE PAGE (VERTICALLY CENTERED & BALANCED)
     # ===========================================================================
+    # 1. Project Title (15pt, 3 perfectly balanced lines)
     p = doc.add_paragraph()
     p.alignment = WD_ALIGN_PARAGRAPH.CENTER
     p.paragraph_format.space_before = Pt(10)
-    p.paragraph_format.space_after = Pt(6)
-    r = p.add_run("TITLE\n")
+    p.paragraph_format.space_after = Pt(28)
+    p.paragraph_format.line_spacing = 1.3
+    r = p.add_run("CROWDPULSE: IOT-ENABLED MULTI-SENSOR HARDWARE\nTELEMETRY AND REAL-TIME AI CROWD DENSITY\nESTIMATION SYSTEM")
+    format_run(r, font_name="Times New Roman", size_pt=15, bold=True)
+
+    # 2. Report Subtitle
+    p = doc.add_paragraph()
+    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    p.paragraph_format.space_before = Pt(0)
+    p.paragraph_format.space_after = Pt(26)
+    r = p.add_run("A PROJECT REPORT")
     format_run(r, font_name="Times New Roman", size_pt=14, bold=True)
-    r2 = p.add_run("CROWDPULSE: IOT-ENABLED MULTI-SENSOR HARDWARE TELEMETRY AND REAL-TIME AI CROWD DENSITY ESTIMATION SYSTEM")
+
+    # 3. Submitted by
+    p = doc.add_paragraph()
+    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    p.paragraph_format.space_before = Pt(0)
+    p.paragraph_format.space_after = Pt(6)
+    r = p.add_run("Submitted by")
+    format_run(r, font_name="Times New Roman", size_pt=12.5, italic=True)
+
+    p = doc.add_paragraph()
+    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    p.paragraph_format.space_before = Pt(0)
+    p.paragraph_format.space_after = Pt(28)
+    p.paragraph_format.line_spacing = 1.35
+    r1 = p.add_run("PARAMESHWARAN S [Reg No: RA2411053020060]\n")
+    format_run(r1, font_name="Times New Roman", size_pt=14, bold=True)
+    r2 = p.add_run("DHARSHAN KUMAR K [Reg No: RA2411053020013]")
     format_run(r2, font_name="Times New Roman", size_pt=14, bold=True)
 
+    # 4. Course
     p = doc.add_paragraph()
     p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    p.paragraph_format.space_before = Pt(14)
-    p.paragraph_format.space_after = Pt(8)
-    r = p.add_run("A PROJECT REPORT")
-    format_run(r, font_name="Times New Roman", size_pt=13, bold=True)
-
-    p = doc.add_paragraph()
-    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    p.paragraph_format.space_before = Pt(6)
-    p.paragraph_format.space_after = Pt(2)
-    r = p.add_run("Submitted by")
-    format_run(r, font_name="Times New Roman", size_pt=12, italic=True)
-
-    p = doc.add_paragraph()
-    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    p.paragraph_format.space_before = Pt(2)
-    p.paragraph_format.space_after = Pt(14)
-    p.paragraph_format.line_spacing = 1.3
-    r1 = p.add_run("PARAMESHWARAN S [Reg No: RA2411053020060]\n")
-    format_run(r1, font_name="Times New Roman", size_pt=13, bold=True)
-    r2 = p.add_run("DHARSHAN KUMAR K [Reg No: RA2411053020013]")
-    format_run(r2, font_name="Times New Roman", size_pt=13, bold=True)
-
-    p = doc.add_paragraph()
-    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    p.paragraph_format.space_before = Pt(6)
-    p.paragraph_format.space_after = Pt(2)
-    r = p.add_run("in partial fulfillment for the course")
-    format_run(r, font_name="Times New Roman", size_pt=12, italic=True)
-
-    p = doc.add_paragraph()
-    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    p.paragraph_format.space_before = Pt(2)
+    p.paragraph_format.space_before = Pt(0)
     p.paragraph_format.space_after = Pt(6)
+    r = p.add_run("in partial fulfillment for the course")
+    format_run(r, font_name="Times New Roman", size_pt=12.5, italic=True)
+
+    p = doc.add_paragraph()
+    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    p.paragraph_format.space_before = Pt(0)
+    p.paragraph_format.space_after = Pt(26)
     p.paragraph_format.line_spacing = 1.3
     r = p.add_run("21ECC301P / MICROPROCESSOR, MICROCONTROLLER, AND\nINTERFACING TECHNIQUES")
-    format_run(r, font_name="Times New Roman", size_pt=13, bold=True)
+    format_run(r, font_name="Times New Roman", size_pt=13.5, bold=True)
 
+    # 5. Department & Faculty
     p = doc.add_paragraph()
     p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    p.paragraph_format.space_before = Pt(4)
-    p.paragraph_format.space_after = Pt(2)
+    p.paragraph_format.space_before = Pt(0)
+    p.paragraph_format.space_after = Pt(4)
     r = p.add_run("in")
     format_run(r, font_name="Times New Roman", size_pt=12, italic=True)
 
     p = doc.add_paragraph()
     p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    p.paragraph_format.space_before = Pt(2)
+    p.paragraph_format.space_before = Pt(0)
     p.paragraph_format.space_after = Pt(4)
     r = p.add_run("ELECTRONICS AND COMMUNICATION ENGINEERING")
-    format_run(r, font_name="Times New Roman", size_pt=13, bold=True)
+    format_run(r, font_name="Times New Roman", size_pt=13.5, bold=True)
 
     p = doc.add_paragraph()
     p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    p.paragraph_format.space_before = Pt(2)
-    p.paragraph_format.space_after = Pt(2)
+    p.paragraph_format.space_before = Pt(0)
+    p.paragraph_format.space_after = Pt(4)
     r = p.add_run("of")
     format_run(r, font_name="Times New Roman", size_pt=12, italic=True)
 
     p = doc.add_paragraph()
     p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    p.paragraph_format.space_before = Pt(2)
-    p.paragraph_format.space_after = Pt(10)
+    p.paragraph_format.space_before = Pt(0)
+    p.paragraph_format.space_after = Pt(26)
     r = p.add_run("FACULTY OF ENGINEERING AND TECHNOLOGY")
-    format_run(r, font_name="Times New Roman", size_pt=13, bold=True)
+    format_run(r, font_name="Times New Roman", size_pt=13.5, bold=True)
 
-    # Logo
-    p_logo = doc.add_paragraph()
-    p_logo.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    p_logo.paragraph_format.space_before = Pt(4)
-    p_logo.paragraph_format.space_after = Pt(10)
-    r_logo = p_logo.add_run()
-    r_logo.add_picture("report/images/extracted_p1_0.jpeg", width=Inches(3.0))
+    # 6. Official Color SRM Logo (Enlarged to 3.8 inches)
+    p_img = doc.add_paragraph()
+    p_img.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    p_img.paragraph_format.space_before = Pt(0)
+    p_img.paragraph_format.space_after = Pt(26)
+    run_img = p_img.add_run()
+    run_img.add_picture("report/images/srm_logo_official_clean.png", width=Inches(3.8))
+
+    # 7. University & Date
+    p = doc.add_paragraph()
+    p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    p.paragraph_format.space_before = Pt(0)
+    p.paragraph_format.space_after = Pt(18)
+    p.paragraph_format.line_spacing = 1.3
+    r = p.add_run("SRM INSTITUTE OF SCIENCE AND TECHNOLOGY\nRAMAPURAM")
+    format_run(r, font_name="Times New Roman", size_pt=15, bold=True)
 
     p = doc.add_paragraph()
     p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    p.paragraph_format.space_before = Pt(4)
+    p.paragraph_format.space_before = Pt(0)
     p.paragraph_format.space_after = Pt(0)
-    p.paragraph_format.line_spacing = 1.3
-    r1 = p.add_run("SRM INSTITUTE OF SCIENCE AND TECHNOLOGY\n")
-    format_run(r1, font_name="Times New Roman", size_pt=13, bold=True)
-    r2 = p.add_run("RAMAPURAM\n")
-    format_run(r2, font_name="Times New Roman", size_pt=13, bold=True)
-    r3 = p.add_run("OCTOBER 2026")
-    format_run(r3, font_name="Times New Roman", size_pt=13, bold=True)
+    r = p.add_run("OCTOBER 2026")
+    format_run(r, font_name="Times New Roman", size_pt=14, bold=True)
 
     # ===========================================================================
-    # PAGE 2: BONAFIDE CERTIFICATE (Calibrated to fit precisely 1 page)
+    # SECTION 1: FRONT MATTER (PAGES 2 - 4: BONAFIDE, DECLARATION, ABSTRACT)
     # ===========================================================================
-    doc.add_page_break()
+    s_front = doc.add_section(WD_SECTION_START.NEW_PAGE)
+    set_margins(s_front, top=0.85, bottom=0.85, left=1.25, right=1.0)
+    s_front.different_first_page_header_footer = False
+    s_front.footer.is_linked_to_previous = False
+    for p_ft in s_front.footer.paragraphs:
+        p_ft.text = ""
+    vAlign_front = parse_xml('<w:vAlign ' + nsdecls('w') + ' w:val="top"/>')
+    s_front._sectPr.append(vAlign_front)
 
     add_heading_14("BONAFIDE CERTIFICATE", space_before=14, space_after=14)
 

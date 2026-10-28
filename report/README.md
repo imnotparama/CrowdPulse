@@ -15,40 +15,49 @@
 ---
 
 ## Document Deliverables in `report/`
-- **Word Document**: [`CrowdPulse_Project_Report.docx`](file:///c:/Users/hunte/CrowdPulse/report/CrowdPulse_Project_Report.docx) (Editable, 22 pages)
-- **PDF Report**: [`CrowdPulse_Project_Report.pdf`](file:///c:/Users/hunte/CrowdPulse/report/CrowdPulse_Project_Report.pdf) (Print-ready, soft-binding ready, 22 pages)
-- **Automated Report Builder**: [`build_final_report.py`](file:///c:/Users/hunte/CrowdPulse/report/build_final_report.py)
-- **Diagram Generators**: [`generate_diagrams.py`](file:///c:/Users/hunte/CrowdPulse/report/generate_diagrams.py) and [`generate_compact_flowchart.py`](file:///c:/Users/hunte/CrowdPulse/report/generate_compact_flowchart.py)
+- **Word Document**: [`CrowdPulse_Project_Report.docx`](file:///c:/Users/hunte/CrowdPulse/report/CrowdPulse_Project_Report.docx) (Editable, 31 pages)
+- **PDF Report**: [`CrowdPulse_Project_Report.pdf`](file:///c:/Users/hunte/CrowdPulse/report/CrowdPulse_Project_Report.pdf) (Print-ready, soft-binding ready, 31 pages)
+- **Automated Report Builder**: [`build_31_page_report.py`](file:///c:/Users/hunte/CrowdPulse/report/build_31_page_report.py)
+- **Figure Generators**: [`generate_all_figures.py`](file:///c:/Users/hunte/CrowdPulse/report/generate_all_figures.py)
 - **Figure Assets**: `report/images/`
 
 ---
 
-## Report Structure & Page Accounting (22 Pages Total)
+## Report Structure & Page Accounting (31 Pages Total)
 
 | Page # | Printed Page No. | Section / Content | Description |
 |:---:|:---:|:---|:---|
-| 1 | *None* | **Title Page** | Official Title, Course Code, Student Details, SRM Official Insignia, Campus & Date |
-| 2 | *None* | **Bonafide Certificate** | Official certification text, Faculty guide & HOD signature blocks, Exam details |
+| 1 | *None* | **Title Page** | Official Title, Course Code, Student Details, SRM Official Color Insignia, Ramapuram Campus & Date |
+| 2 | *None* | **Bonafide Certificate** | Official certification text, Faculty guide Dr. Reshma P Vengaloor & HOD Dr. S. Rajasekaran signature blocks |
 | 3 | *None* | **Declaration** | Student declaration of original work with signatures |
-| 4 | *None* | **Abstract** | 265-word technical abstract (≥ 250 words) with keywords and 1.5 line spacing |
-| 5 | **5** | **1. Introduction** | Problem statement, turbulent crowd shockwaves, multi-sensor precursor paradigm, 21ECC301P course context |
-| 6 | **6** | **1.1 Background & 2. Objectives** | Multi-sensor precursor motivation, 5 primary engineering objectives |
-| 7 | **7** | **2. Objectives & 3. Block Diagram** | Objectives 3-5, Table 1 Target Metrics, layered hardware architecture, Section 3 intro |
-| 8 | **8** | **3. Block Diagram (cont'd)** | Figure 1 System Block Diagram, transducer & telemetry bus descriptions |
-| 9 | **9** | **4. Hardware & Software Specs** | Table 2 Hardware component specifications, Table 3 Microcontroller Pinout Mapping |
-| 10 | **10** | **4. Specs (cont'd) & 5. Circuit** | Table 4 Software Toolchain Stack, Figure 2 Circuit Schematic, interfacing theory |
-| 11 | **11** | **5. Circuit (cont'd) & 6. Flowchart** | Pull-up sizing, 2N2222 switching, Figure 3 Compact Execution Flowchart |
-| 12 | **12** | **6. Algorithm (cont'd)** | Steps 1 to 7 (Wi-Fi hopping, I2S fast-attack DSP, OLED HUD, Risk fusion, Telemetry dispatch) |
-| 13 | **13** | **7. Program Code (Python - Part 1)** | Telemetry packet schema, hardware controller, fast-attack decibel envelope filter, Risk math |
-| 14 | **14** | **7. Program Code (Python - Part 2)** | Multi-stage actuation state machine, FastAPI ingestion endpoint, WebSocket stream server |
-| 15 | **15** | **7. Program Code (8051 ALP - Part 1)** | Reset vector, SFR declarations, memory allocation, main loop, AM2302 bit-banging protocol |
-| 16 | **16** | **7. Program Code (8051 ALP - Part 2)** | Bit-sampling loop, PIR polling, decibel comparator, 2N2222 Buzzer driver, delay loops |
-| 17 | **17** | **7. ALP (cont'd) & 8. Working Principle** | Machine-cycle timing subroutines, Figure 4 Sensor Fusion Model, working principle |
-| 18 | **18** | **8. Working Principle (cont'd)** | Transduction physics (AM2302, INMP441, PIR, 802.11 Sniffer), dynamic weighting equations |
-| 19 | **19** | **9. Results and Discussion (Part 1)** | Simulated surge trials, Figure 5 Telemetry Waveforms, decibel peaks, heat index shifts |
-| 20 | **20** | **9. Results and Discussion (Part 2)** | Figure 6 Enterprise Dashboard UI, Table 5 Experimental Validation Performance Metrics |
-| 21 | **21** | **9. Discussion & 10. Conclusion** | Occlusion compensation, early-warning window (38s lead time), engineering conclusion |
-| 22 | **22** | **11. References** | 12 IEEE-style formal academic and technical citations |
+| 4 | *None* | **Abstract** | Structured academic abstract with keywords and 1.5 line spacing |
+| 5 | **5** | **Contents & List of Figures** | Formal Table of Contents (Sections 1-11 + Appendix) and List of Figures (1 to 11) |
+| 6 | **6** | **1. Introduction** | 1.1 Project Overview, 1.2 Problem Statement |
+| 7 | **7** | **1. Introduction (cont'd)** | 1.2 Problem Statement cont'd, 1.3 Novelty of the Project, 1.4 Scope of the Project |
+| 8 | **8** | **2. Objectives & 3. Block Diagram** | 1.5 Organisation of Report, 2. Objectives (8 targets), 3. Block Diagram intro |
+| 9 | **9** | **3. Block Diagram (cont'd)** | Detailed functional bullet points of MCU, AM2302, INMP441, PIR, OLED, 2N2222 Buzzer, RGB LED, Backend |
+| 10 | **10** | **Figure 1 & 3.2 Architecture** | Figure 1 Block Diagram, 3.2 System Architecture (Hardware, Comm, User Layers) |
+| 11 | **11** | **Figure 2 & 4. Requirements** | Figure 2 Three-Layer Architecture, 4.1 Hardware Requirements (Table 1 items 1-4) |
+| 12 | **12** | **Table 1 (cont'd) & Table 2** | Table 1 items 5-9, 4.2 Software Requirements (Table 2 items 1-3) |
+| 13 | **13** | **Table 2 (cont'd) & 5. Circuit** | Table 2 items 4-6, 5. Circuit Diagram, Table 3 Pin Assignment (items 1-5) |
+| 14 | **14** | **Figure 3 & 5.1 Wiring Notes** | Table 3 items 6-9, Figure 3 Circuit Wiring Diagram, 5.1 Wiring Notes (I2S, I2C) |
+| 15 | **15** | **5.1 Wiring & 6. Flowchart** | 1-Wire pull-up, 2N2222 driver, 6.1 Algorithm steps 1-10, 6.2 Explanation |
+| 16 | **16** | **Figure 4. Flowchart** | Acoustic surge & anti-feedback logic, Figure 4 Flowchart of CrowdPulse edge operation |
+| 17 | **17** | **Figure 5 & 7. Program Code** | Figure 5 Flowchart of acoustic threshold & anti-feedback blanking, 7. Program Code intro |
+| 18 | **18** | **7.1 Python Code 1** | Microcontroller sensor acquisition, I2S 24-bit RMS DSP, baseline calibration, anti-feedback timer |
+| 19 | **19** | **7.2 Python Code 2** | FastAPI async telemetry router, mathematical stampede risk equation, WebSocket broadcast |
+| 20 | **20** | **7.3 ALP Code 1 (8051)** | 8051 assembly for DHT22 bit-banging, 18 ms machine-cycle delay, 8-bit decibel bus comparator |
+| 21 | **21** | **7.4 ALP Code 2 & Table 4** | 8051 assembly for 2N2222 buzzer driving, External Interrupt 0 SOS, Table 4 Python to ALP mapping |
+| 22 | **22** | **Table 4 (cont'd) & 7.6 Notes** | Table 4 cont'd, 7.6 Architectural explanation of Python & ALP programs |
+| 23 | **23** | **8. Working Principle** | 8-stage operational working principle (Calibration, Transduction, DSP, Surges, Risk, Actuation) |
+| 24 | **24** | **Figure 6 & 8.2 Real Example** | Figure 6 Overall System Workflow, 8.1 Multi-sensor role, 8.2 Transit concourse surge scenario |
+| 25 | **25** | **9. Results & Table 5** | 9.1 Test Plan and Expected Behaviour (Table 5 with 11 verification test cases) |
+| 26 | **26** | **9.2 Screenshots & Figure 7** | Serial console output listing, Figure 7 Landing page & system console overview |
+| 27 | **27** | **Figure 8 & Figure 9** | Figure 8 Live Dashboard with demo video, Figure 9 Real-Time Telemetry curves, 9.3 Applications, 9.4 Benefits |
+| 28 | **28** | **9.5 Discussion & 10. Conclusion**| 9.4 Benefits cont'd, 9.5 Discussion, 10. Conclusion, 10.1 Limitations |
+| 29 | **29** | **10.2 Future & 11. References**| 10.1 Limitations cont'd, 10.2 Future Enhancements, 11. References (citations [1] to [6]) |
+| 30 | **30** | **11. References (cont'd)** | Citations [7] to [12] (Complete IEEE formal citations) |
+| 31 | **31** | **Appendix: Photographs** | Figure 10 Assembled prototype (top view), Figure 11 Prototype with web app open on laptop with demo video |
 
 ---
 

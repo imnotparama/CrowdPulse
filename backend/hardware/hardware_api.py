@@ -79,6 +79,15 @@ async def run_hardware_self_test() -> dict[str, Any]:
     return esp32_manager.run_self_test()
 
 
+@router.post("/calibrate")
+async def calibrate_hardware_environment() -> dict[str, Any]:
+    """
+    Triggers ambient environmental acoustic calibration on physical IoT hardware node.
+    Profiles the room's noise floor for 3 seconds and updates dynamic thresholds.
+    """
+    return esp32_manager.calibrate_environment()
+
+
 # ── Serial Port Management Endpoints (USB COM Port) ──
 
 @router.get("/serial/ports")

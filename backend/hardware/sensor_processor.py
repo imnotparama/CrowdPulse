@@ -19,6 +19,7 @@ class SensorProcessor:
         self.noise_history: deque[float] = deque(maxlen=history_window)
         self.temp_history: deque[float] = deque(maxlen=history_window)
         self.humidity_history: deque[float] = deque(maxlen=history_window)
+        self.ambient_baseline_db: float = 55.0
 
     def calculate_heat_stress(self, temp_c: float, humidity_pct: float) -> float:
         """
@@ -34,25 +35,39 @@ class SensorProcessor:
         apparent_temp = t + 0.33 * e - 4.0
 
         # Normalize to 0-100 environmental heat stress score
-        # 20C apparent -> score 10; 30C apparent -> score 40; 40C apparent -> score 85+
         heat_stress_score = max(0.0, min(100.0, (apparent_temp - 18.0) * 3.5))
         return round(heat_stress_score, 1)
 
-    def calculate_noise_index(self, noise_db: float) -> float:
+    def calculate_noise_index(self, noise_db: float, baseline_db: Optional[float] = None) -> tuple[float, float, float]:
         """
-        Normalizes acoustic decibel readings from INMP441 MEMS microphone.
-        Ambient quiet: 40-50 dB -> index 0-15
-        Moderate crowd murmur: 55-70 dB -> index 20-50
-        Loud chanting / elevated agitation: 70-85 dB -> index 50-80
-        Severe scream / panic / acoustic surge: 85-105 dB -> index 80-100
+        Normalizes acoustic decibel readings relative to the calibrated ambient baseline:
+        - baseline_db: Calibrated room background noise (e.g., 55 dB in library, 75 dB in active lab)
+        - acoustic_surge: Decibels above ambient room background
+        - Normal ambient room noise -> index 0-15% (Status SAFE / Green)
+        - Moderate agitation / crowd murmur (+10 dB surge) -> index 45-65% (Status CAUTION / Yellow)
+        - Panic shout / distress scream / crush roar (+18 dB surge) -> index 80-100% (Status SURGE RISK / Red Siren)
         """
+        if baseline_db is not None and baseline_db >= 35.0:
+            self.ambient_baseline_db = baseline_db
+
         self.noise_history.append(noise_db)
-        # 3-sample rolling smoothed noise to filter transient microphone pops
         smoothed_db = sum(self.noise_history) / len(self.noise_history)
 
-        # Baseline 45 dB = 0%, 95 dB = 100%
-        normalized = (smoothed_db - 45.0) / (95.0 - 45.0) * 100.0
-        return round(max(0.0, min(100.0, normalized)), 1)
+        # Adaptive background baseline tracking during calm periods
+        if smoothed_db < (self.ambient_baseline_db + 4.0) and baseline_db is None and smoothed_db > 35.0:
+            self.ambient_baseline_db = (0.995 * self.ambient_baseline_db) + (0.005 * smoothed_db)
+
+        # Decibel surge above ambient room background
+        acoustic_surge = max(0.0, smoothed_db - self.ambient_baseline_db)
+
+        # Normalize relative to ambient surge (+24 dB surge = 100% agitation)
+        normalized = min(100.0, (acoustic_surge / 24.0) * 95.0)
+
+        # Absolute safeguard for genuinely loud sound pressure levels regardless of baseline
+        if smoothed_db >= 94.0:
+            normalized = max(normalized, 85.0)
+
+        return round(normalized, 1), round(self.ambient_baseline_db, 1), round(acoustic_surge, 1)
 
     def calculate_motion_activity(self, motion: bool) -> float:
         """
@@ -94,9 +109,13 @@ class SensorProcessor:
         age = max(0.0, now - pkt_time)
 
         heat_stress = self.calculate_heat_stress(packet.temperature, packet.humidity)
-        noise_idx = self.calculate_noise_index(packet.noise_db)
+        noise_idx, base_db, surge_db = self.calculate_noise_index(packet.noise_db, packet.baseline_db)
         motion_score = self.calculate_motion_activity(packet.motion)
         health = self.evaluate_sensor_health(packet, age)
+
+        # Dynamic ambient thresholds for UI & Actuators
+        caution_th = round(max(70.0, base_db + 10.0), 1)
+        surge_th = round(max(82.0, base_db + 18.0), 1)
 
         # Composite hardware sensor threat score (weighted acoustic, motion, environmental)
         sensor_score = (0.45 * noise_idx) + (0.35 * motion_score) + (0.20 * heat_stress)
@@ -107,6 +126,10 @@ class SensorProcessor:
             temperature=round(packet.temperature, 1),
             humidity=round(packet.humidity, 1),
             noise_db=round(packet.noise_db, 1),
+            ambient_baseline_db=base_db,
+            acoustic_surge_db=surge_db,
+            caution_threshold_db=caution_th,
+            surge_threshold_db=surge_th,
             motion_detected=packet.motion,
             sos_active=bool(packet.sos or False),
             active_devices=int(packet.active_devices or 0),

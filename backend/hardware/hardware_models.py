@@ -14,6 +14,8 @@ class ESP32TelemetryPacket(BaseModel):
     temperature: Optional[float] = Field(25.0, description="Ambient temperature in degrees Celsius from AM2302 (DHT22)")
     humidity: Optional[float] = Field(50.0, description="Relative humidity percentage from AM2302 (DHT22)")
     noise_db: Optional[float] = Field(45.0, description="Noise level in decibels from INMP441 MEMS microphone")
+    baseline_db: Optional[float] = Field(None, description="Calibrated ambient baseline in dB")
+    acoustic_surge: Optional[float] = Field(None, description="Current noise surge above baseline in dB")
     motion: Optional[bool] = Field(False, description="Digital motion detection trigger from PIR sensor or SOS button")
     sos: Optional[bool] = Field(False, description="Emergency SOS panic button trigger")
     active_devices: Optional[int] = Field(None, description="Number of unique smartphone probe requests sniffed in window")
@@ -33,6 +35,10 @@ class HardwareState(BaseModel):
     temperature: float = 24.5
     humidity: float = 52.0
     noise_db: float = 58.0
+    ambient_baseline_db: float = 55.0
+    acoustic_surge_db: float = 0.0
+    caution_threshold_db: float = 65.0
+    surge_threshold_db: float = 75.0
     motion_detected: bool = False
     sos_active: bool = False
     active_devices: int = 0
